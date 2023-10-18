@@ -1,0 +1,4 @@
+[submodule "PlantEd"]
+	path = PlantEd
+	url = https://github.com/NAMlab/PlantEd.git
+	branch = rewrite
