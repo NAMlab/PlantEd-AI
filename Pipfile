@@ -13,6 +13,7 @@ dataclasses-json = "*"
 scipy = "*"
 matplotlib = "*"
 planted-server = {file = "PlantEd", editable = true}
+torch = "*"
 
 [dev-packages]
 

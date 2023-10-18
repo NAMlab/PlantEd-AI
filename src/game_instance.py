@@ -1,19 +1,24 @@
 import csv
+import sys
+import os
 import asyncio
 import json
 import websockets
 import multiprocessing
 import time
 
+import numpy as np
+
 from PlantEd_Server.server import server
 
 class GameInstance:
   def __init__(self, instance_name, port=8765):
     self.port = port
+    self.last_step_seed_biomass = 0.0
     self.instance_name = instance_name
     self.stomata = True
     self.init_csv_logger()
-    self.server_process = multiprocessing.Process(target=server.start, args=(port,))
+    self.server_process = multiprocessing.Process(target=self.start_server)
     self.server_process.start()
     time.sleep(20)
 
@@ -23,6 +28,10 @@ class GameInstance:
   def close(self):
     self.csv_file.close()
     self.server_process.terminate()
+
+  def start_server(self):
+    sys.stdout = open(os.devnull, 'w')
+    server.start(self.port)
 
   def init_csv_logger(self):
     self.csv_file = open(self.instance_name + '.csv', 'w', newline='')
@@ -40,6 +49,22 @@ class GameInstance:
   # 6 - open stomata
   # 7 - close stomata
   # 8 - grow new root
+  # Observation Space:
+  # [
+  #  # Environment
+  #  temperature,
+  #  sun_intensity,
+  #  humidity,
+  #
+  #  # Plant
+  #  leaf_biomass,
+  #  stem_biomass,
+  #  root_biomass,
+  #  seed_biomass,
+  #  starch_pool,
+  #  max_starch_pool,
+  #  stomata_state
+  # ]
   async def step(self,action):
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
       if action == 6:
@@ -64,7 +89,24 @@ class GameInstance:
       response = await websocket.recv()
       res = json.loads(response)
       self.write_log_row(res, game_state)
-      return(res)
+      observation = np.array([
+        res["environment"]["temperature"],
+        res["environment"]["sun_intensity"],
+        res["environment"]["humidity"],
+
+        res["plant"]["leaf_biomass"],
+        res["plant"]["stem_biomass"],
+        res["plant"]["root_biomass"],
+        res["plant"]["seed_biomass"],
+        res["plant"]["starch_pool"],
+        res["plant"]["max_starch_pool"],
+
+        game_state["growth_percentages"]["stomata"]
+        ])
+
+      reward = res["plant"]["seed_biomass"] - self.last_step_seed_biomass
+      self.last_step_seed_biomass = res["plant"]["seed_biomass"]
+      return((observation, reward))
 
   def write_log_row(self, res, game_state):
     self.csv_writer.writerow([
@@ -92,9 +134,16 @@ class GameInstance:
       ])
 
 
-game_instance = GameInstance("testrun")
-asyncio.run(game_instance.step(8))
-for i in range(10):
-  asyncio.run(game_instance.step(1))
-print("Now we are finished.")
-game_instance.close()
+if __name__ == "__main__":
+  game_instance = GameInstance("testrun")
+  obs_space, reward = asyncio.run(game_instance.step(8))
+  print(obs_space)
+  print("Heya")
+  print(reward)
+  for i in range(10):
+    obs_space, reward = asyncio.run(game_instance.step(4))
+    print(obs_space)
+    print("Heya")
+    print(reward)
+  print("Now we are finished.")
+  game_instance.close()
