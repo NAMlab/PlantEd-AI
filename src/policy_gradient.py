@@ -15,20 +15,20 @@ import asyncio
 
 from game_instance import GameInstance
 
-# @TODO we actually have a CUDA device! but somehow can't use it because then downstairs in probs = ... it throws an error.
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#device = "cpu"
 print(device)
 
 class Policy(nn.Module):
     def __init__(self, s_size, a_size, h_size):
         super(Policy, self).__init__()
         self.fc1 = nn.Linear(s_size, h_size)
-        self.fc2 = nn.Linear(h_size, a_size)
+        self.fc2 = nn.Linear(h_size, h_size)
+        self.fc3 = nn.Linear(h_size, a_size)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
         return F.softmax(x, dim=1)
     
     def act(self, state):
@@ -127,13 +127,13 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
     return scores
 
 
-s_size = 10
-a_size = 8
+s_size = 10 # state size, 10 inputs currently
+a_size = 8  # action space has 8 potential actions
 
 cartpole_hyperparameters = {
     "h_size": 12,
-    "n_training_episodes": 50,
-    "max_t": 1500,
+    "n_training_episodes": 150,
+    "max_t": 3000,
     "gamma": 1.0,
     "lr": 1e-2,
     "state_space": s_size,
@@ -147,7 +147,7 @@ cartpole_optimizer = optim.Adam(cartpole_policy.parameters(), lr=cartpole_hyperp
 # Do a few short simulations to teach the NN the basics
 scores = reinforce(cartpole_policy,
                    cartpole_optimizer,
-                   15, 
+                   10, 
                    100,
                    cartpole_hyperparameters["gamma"], 
                    1)
@@ -159,3 +159,6 @@ scores = reinforce(cartpole_policy,
                    cartpole_hyperparameters["max_t"],
                    cartpole_hyperparameters["gamma"], 
                    1)
+
+for i in range(len(scores)):
+  print("episode " + str(i+1) + ": " + str(a[i]))

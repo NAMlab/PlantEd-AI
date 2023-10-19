@@ -14,7 +14,7 @@ from PlantEd_Server.server import server
 class GameInstance:
   def __init__(self, instance_name, port=8765):
     self.port = port
-    self.last_step_seed_biomass = 0.0
+    self.last_step_biomass = 0.0
     self.instance_name = instance_name
     self.stomata = True
     self.init_csv_logger()
@@ -109,8 +109,9 @@ class GameInstance:
       return((observation, reward))
 
   def calc_reward(self, res):
-    reward = res["plant"]["seed_biomass"] - self.last_step_seed_biomass
-    self.last_step_seed_biomass = res["plant"]["seed_biomass"]
+    total_biomass = res["plant"]["leaf_biomass"] + res["plant"]["stem_biomass"] + res["plant"]["root_biomass"] + res["plant"]["seed_biomass"]
+    reward = total_biomass - self.last_step_biomass
+    self.last_step_biomass = total_biomass
     return(reward)
 
   def write_log_row(self, res, game_state):
