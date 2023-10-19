@@ -16,12 +16,14 @@ from PlantEd_Server.server import server
 
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
-  max_steps = 200
+  max_steps = 5000 # @TODO this is how many steps the world lasts, should be determined by server not by me.
 
   def __init__(self, instance_name="PlantEd_instance", port=8765):
     self.port = port
     self.last_step_biomass = 0.0
     self.instance_name = instance_name
+    self.csv_file = None
+    self.server_process = None
     self.running = False
 
     self.action_space = spaces.Discrete(7)
@@ -41,8 +43,10 @@ class PlantEdEnv(gym.Env):
     self.close()
 
   def close(self):
-    self.csv_file.close()
-    self.server_process.terminate()
+    if(self.csv_file):
+      self.csv_file.close()
+    if(self.server_process):
+      self.server_process.terminate()
     self.running = False
 
   def reset(self, seed=None, options=None):
@@ -75,6 +79,7 @@ class PlantEdEnv(gym.Env):
         "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", "stomata"])
 
   def step(self, action):
+    print("step")
     return(asyncio.run(self._async_step(action)))
 
   # Action Space:
@@ -105,8 +110,6 @@ class PlantEdEnv(gym.Env):
   async def _async_step(self,action):
     terminated = False
     truncated = False
-    # @TODO if anything goes wrong here with the server etc. we should output a "truncated" = true
-    # except websockets.exceptions.ConnectionClosedError
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
       if action == 6:
         self.stomata = True
@@ -126,31 +129,40 @@ class PlantEdEnv(gym.Env):
           "increase_nitrate_grid": None,
           "buy_new_root": {'directions': [(686.0, 60.0)]} if action == 8 else {'directions': []}
       }
-      await websocket.send(json.dumps(game_state))
-      response = await websocket.recv()
-      res = json.loads(response)
-      self.write_log_row(res, game_state)
-      observation = {
-          "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
-          "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
-          "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
+      try:
+        await websocket.send(json.dumps(game_state))
+        response = await websocket.recv()
+        res = json.loads(response)
+        self.write_log_row(res, game_state)
+        observation = {
+            "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
+            "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
+            "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
 
-          "biomasses": np.array([
-            res["plant"]["leaf_biomass"],
-            res["plant"]["stem_biomass"],
-            res["plant"]["root_biomass"],
-            res["plant"]["seed_biomass"],
-            ]).astype(np.float32),
-          "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
-          "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
+            "biomasses": np.array([
+              res["plant"]["leaf_biomass"],
+              res["plant"]["stem_biomass"],
+              res["plant"]["root_biomass"],
+              res["plant"]["seed_biomass"],
+              ]).astype(np.float32),
+            "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
+            "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
 
-          "stomata_state": np.array([game_state["growth_percentages"]["stomata"]])
-        }
+            "stomata_state": np.array([game_state["growth_percentages"]["stomata"]])
+          }
+        self.last_observation = observation
 
-      reward = self.calc_reward(res)
-      self.current_step += 1
-      if self.current_step > self.max_steps:
-        terminated = True
+        reward = self.calc_reward(res)
+        self.current_step += 1
+        if self.current_step > self.max_steps:
+          terminated = True
+      except websockets.exceptions.ConnectionClosedError:
+        print("SERVER CRASHED")
+        # @TODO This is not optimal because it pretends that what the actor did had no influence at all.
+        observation = self.last_observation
+        reward = 0.0
+        truncated = True
+
       return(observation, reward, terminated, truncated, {})
 
   def calc_reward(self, res):
