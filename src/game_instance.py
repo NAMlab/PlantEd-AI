@@ -30,7 +30,8 @@ class GameInstance:
     self.server_process.terminate()
 
   def start_server(self):
-    sys.stdout = open(os.devnull, 'w')
+    sys.stdout = open("server.log", 'w')
+    sys.stderr = open("server.err", 'w')
     server.start(self.port)
 
   def init_csv_logger(self):
@@ -78,7 +79,7 @@ class GameInstance:
               "stem_percent": 100 if action == 2 else 0,
               "root_percent": 100 if action == 3 else 0,
               "seed_percent": 100 if action == 4 else 0,
-              "starch_percent": 100 if action == 5 else -20,
+              "starch_percent": 100 if action in [5,6,7,8] else -100, # make starch when manipulating stomata or new roots
               "stomata": self.stomata,
           },
           "increase_water_grid": None,
@@ -86,27 +87,35 @@ class GameInstance:
           "buy_new_root": {'directions': [(686.0, 60.0)]} if action == 8 else {'directions': []}
       }
       await websocket.send(json.dumps(game_state))
-      response = await websocket.recv()
-      res = json.loads(response)
-      self.write_log_row(res, game_state)
-      observation = np.array([
-        res["environment"]["temperature"],
-        res["environment"]["sun_intensity"],
-        res["environment"]["humidity"],
+      try:
+        response = await websocket.recv()
+        res = json.loads(response)
+        self.write_log_row(res, game_state)
+        observation = np.array([
+          res["environment"]["temperature"],
+          res["environment"]["sun_intensity"],
+          res["environment"]["humidity"],
 
-        res["plant"]["leaf_biomass"],
-        res["plant"]["stem_biomass"],
-        res["plant"]["root_biomass"],
-        res["plant"]["seed_biomass"],
-        res["plant"]["starch_pool"],
-        res["plant"]["max_starch_pool"],
+          res["plant"]["leaf_biomass"],
+          res["plant"]["stem_biomass"],
+          res["plant"]["root_biomass"],
+          res["plant"]["seed_biomass"],
+          res["plant"]["starch_pool"],
+          res["plant"]["max_starch_pool"],
 
-        game_state["growth_percentages"]["stomata"]
-        ])
+          1.0 if game_state["growth_percentages"]["stomata"] else -1.0
+          ])
 
-      reward = res["plant"]["seed_biomass"] - self.last_step_seed_biomass
-      self.last_step_seed_biomass = res["plant"]["seed_biomass"]
-      return((observation, reward))
+        reward = self.calc_reward(res)
+        return((observation, reward))
+      except websockets.exceptions.ConnectionClosedError:
+        print("Websocket connection closed!")
+        print(json.dumps(game_state, indent=2))
+
+  def calc_reward(self, res):
+    reward = res["plant"]["seed_biomass"] - self.last_step_seed_biomass
+    self.last_step_seed_biomass = res["plant"]["seed_biomass"]
+    return(reward)
 
   def write_log_row(self, res, game_state):
     self.csv_writer.writerow([

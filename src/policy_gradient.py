@@ -17,7 +17,7 @@ from game_instance import GameInstance
 
 # @TODO we actually have a CUDA device! but somehow can't use it because then downstairs in probs = ... it throws an error.
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = "cpu"
+#device = "cpu"
 print(device)
 
 class Policy(nn.Module):
@@ -33,7 +33,7 @@ class Policy(nn.Module):
     
     def act(self, state):
         state = torch.from_numpy(state).float().unsqueeze(0).to(device)
-        probs = self.forward(state).cpu()
+        probs = self.forward(state).to(device)
         m = Categorical(probs)
         action = m.sample()
         return action.item(), m.log_prob(action)
@@ -50,10 +50,11 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
         state, reward = asyncio.run(game_instance.step(8)) # start with a root
         # Line 4 of pseudocode
         for t in range(max_t):
-            action, log_prob = policy.act(state)
-            saved_log_probs.append(log_prob)
-            state, reward, = asyncio.run(game_instance.step(int(action)))
-            rewards.append(reward)
+          print("e" + str(i_episode) + ": " + str(t))
+          action, log_prob = policy.act(state)
+          saved_log_probs.append(log_prob)
+          state, reward, = asyncio.run(game_instance.step(int(action)))
+          rewards.append(reward)
         game_instance.close() # kill server proces etc.
         scores_deque.append(sum(rewards))
         scores.append(sum(rewards))
@@ -114,7 +115,7 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
         optimizer.step()
         
         if i_episode % print_every == 0:
-            print('Episode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_deque)))
+            print('Episode {}\tAverage Score: {:.4f}'.format(i_episode, np.mean(scores_deque)))
         
     return scores
 
@@ -124,8 +125,8 @@ a_size = 8
 
 cartpole_hyperparameters = {
     "h_size": 12,
-    "n_training_episodes": 3,
-    "max_t": 100,
+    "n_training_episodes": 50,
+    "max_t": 1500,
     "gamma": 1.0,
     "lr": 1e-2,
     "state_space": s_size,
