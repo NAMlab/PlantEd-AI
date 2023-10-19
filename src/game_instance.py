@@ -87,30 +87,26 @@ class GameInstance:
           "buy_new_root": {'directions': [(686.0, 60.0)]} if action == 8 else {'directions': []}
       }
       await websocket.send(json.dumps(game_state))
-      try:
-        response = await websocket.recv()
-        res = json.loads(response)
-        self.write_log_row(res, game_state)
-        observation = np.array([
-          res["environment"]["temperature"],
-          res["environment"]["sun_intensity"],
-          res["environment"]["humidity"],
+      response = await websocket.recv()
+      res = json.loads(response)
+      self.write_log_row(res, game_state)
+      observation = np.array([
+        res["environment"]["temperature"],
+        res["environment"]["sun_intensity"],
+        res["environment"]["humidity"],
 
-          res["plant"]["leaf_biomass"],
-          res["plant"]["stem_biomass"],
-          res["plant"]["root_biomass"],
-          res["plant"]["seed_biomass"],
-          res["plant"]["starch_pool"],
-          res["plant"]["max_starch_pool"],
+        res["plant"]["leaf_biomass"],
+        res["plant"]["stem_biomass"],
+        res["plant"]["root_biomass"],
+        res["plant"]["seed_biomass"],
+        res["plant"]["starch_pool"],
+        res["plant"]["max_starch_pool"],
 
-          1.0 if game_state["growth_percentages"]["stomata"] else -1.0
-          ])
+        1.0 if game_state["growth_percentages"]["stomata"] else -1.0
+        ])
 
-        reward = self.calc_reward(res)
-        return((observation, reward))
-      except websockets.exceptions.ConnectionClosedError:
-        print("Websocket connection closed!")
-        print(json.dumps(game_state, indent=2))
+      reward = self.calc_reward(res)
+      return((observation, reward))
 
   def calc_reward(self, res):
     reward = res["plant"]["seed_biomass"] - self.last_step_seed_biomass

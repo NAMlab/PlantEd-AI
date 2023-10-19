@@ -43,18 +43,24 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
     scores_deque = deque(maxlen=100)
     scores = []
     # Line 3 of pseudocode
-    for i_episode in range(1, n_training_episodes+1):
+    i_episode = 1
+    while i_episode < n_training_episodes + 1:
         saved_log_probs = []
         rewards = []
         game_instance = GameInstance("ep" + str(i_episode))
         state, reward = asyncio.run(game_instance.step(8)) # start with a root
-        # Line 4 of pseudocode
-        for t in range(max_t):
-          print("e" + str(i_episode) + ": " + str(t))
-          action, log_prob = policy.act(state)
-          saved_log_probs.append(log_prob)
-          state, reward, = asyncio.run(game_instance.step(int(action)))
-          rewards.append(reward)
+        try:
+          # Line 4 of pseudocode
+          for t in range(max_t):
+            print("e" + str(i_episode) + ": " + str(t))
+            action, log_prob = policy.act(state)
+            saved_log_probs.append(log_prob)
+            state, reward = asyncio.run(game_instance.step(int(action)))
+            rewards.append(reward)
+        except: # server hangs/crashes
+          print("SERVER CRASHED")
+          game_instance.close()
+          continue # just re-try the episode
         game_instance.close() # kill server proces etc.
         scores_deque.append(sum(rewards))
         scores.append(sum(rewards))
@@ -116,6 +122,7 @@ def reinforce(policy, optimizer, n_training_episodes, max_t, gamma, print_every)
         
         if i_episode % print_every == 0:
             print('Episode {}\tAverage Score: {:.4f}'.format(i_episode, np.mean(scores_deque)))
+        i_episode = i_episode + 1
         
     return scores
 
@@ -137,6 +144,15 @@ cartpole_hyperparameters = {
 cartpole_policy = Policy(cartpole_hyperparameters["state_space"], cartpole_hyperparameters["action_space"], cartpole_hyperparameters["h_size"]).to(device)
 cartpole_optimizer = optim.Adam(cartpole_policy.parameters(), lr=cartpole_hyperparameters["lr"])
 
+# Do a few short simulations to teach the NN the basics
+scores = reinforce(cartpole_policy,
+                   cartpole_optimizer,
+                   15, 
+                   100,
+                   cartpole_hyperparameters["gamma"], 
+                   1)
+
+# And then the "real ones"
 scores = reinforce(cartpole_policy,
                    cartpole_optimizer,
                    cartpole_hyperparameters["n_training_episodes"], 
