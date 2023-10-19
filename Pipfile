@@ -14,6 +14,8 @@ scipy = "*"
 matplotlib = "*"
 planted-server = {file = "PlantEd", editable = true}
 torch = "*"
+gymnasium = "*"
+stable-baselines3 = "*"
 
 [dev-packages]
 
