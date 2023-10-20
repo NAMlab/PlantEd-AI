@@ -41,8 +41,9 @@ envs = DummyVecEnv([make_env()])
 
 model = A2C(policy = "MultiInputPolicy", env = envs, verbose=1)
 
-model.learn(5000, log_interval=10)
+model.learn(50000, log_interval=10)
 envs.close()
 
 print(model)
+model.save("a2c_model")
 

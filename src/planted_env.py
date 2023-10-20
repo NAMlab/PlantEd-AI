@@ -16,7 +16,7 @@ from PlantEd_Server.server import server
 
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
-  max_steps = 5000 # @TODO this is how many steps the world lasts, should be determined by server not by me.
+  max_steps = 6 * 24 * 35 # @TODO this is how many steps the world lasts, should be determined by server not by me.
 
   def __init__(self, instance_name="PlantEd_instance", port=8765):
     self.port = port
@@ -74,12 +74,11 @@ class PlantEdEnv(gym.Env):
   def init_csv_logger(self):
     self.csv_file = open(self.instance_name + '.csv', 'w', newline='')
     self.csv_writer = csv.writer(self.csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    self.csv_writer.writerow(["time","temperature","sun_intensity", "humidity","precipitation",
+    self.csv_writer.writerow(["time","temperature","sun_intensity", "humidity","precipitation","accessible_water","accessible_nitrate",
         "leaf_biomass", "stem_biomass", "root_biomass", "seed_biomass", "starch_pool", "max_starch_pool", "water_pool", "max_water_pool",
         "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", "stomata"])
 
   def step(self, action):
-    print("step")
     return(asyncio.run(self._async_step(action)))
 
   # Action Space:
@@ -133,11 +132,21 @@ class PlantEdEnv(gym.Env):
         await websocket.send(json.dumps(game_state))
         response = await websocket.recv()
         res = json.loads(response)
+
+        root_grid = np.array(list(res["plant"]["root"]["root_grid"].values())).reshape((20,6))
+        nitrate_grid = np.array(res["environment"]["nitrate_grid"])
+        water_grid = np.array(res["environment"]["water_grid"])
+
+        res["environment"]["accessible_water"] = (root_grid * water_grid).sum()
+        res["environment"]["accessible_nitrate"] = (root_grid * nitrate_grid).sum()
+
         self.write_log_row(res, game_state)
         observation = {
             "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
             "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
             "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
+            #"accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
+            #"accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
 
             "biomasses": np.array([
               res["plant"]["leaf_biomass"],
@@ -178,6 +187,8 @@ class PlantEdEnv(gym.Env):
       res["environment"]["sun_intensity"],
       res["environment"]["humidity"],
       res["environment"]["precipitation"],
+      res["environment"]["accessible_water"],
+      res["environment"]["accessible_nitrate"],
 
       res["plant"]["leaf_biomass"],
       res["plant"]["stem_biomass"],
