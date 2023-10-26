@@ -59,7 +59,7 @@ class PlantEdEnv(gym.Env):
     self.running = True
     time.sleep(20)
     self.current_step = 0
-    observation, reward, terminated, truncated, info = self.step(8)
+    observation, reward, terminated, truncated, info = self.step(7)
     return(observation,info)
 
 
@@ -76,20 +76,21 @@ class PlantEdEnv(gym.Env):
     self.csv_writer = csv.writer(self.csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     self.csv_writer.writerow(["time","temperature","sun_intensity", "humidity","precipitation","accessible_water","accessible_nitrate",
         "leaf_biomass", "stem_biomass", "root_biomass", "seed_biomass", "starch_pool", "max_starch_pool", "water_pool", "max_water_pool",
-        "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", "stomata"])
+        "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", "stomata",
+        "reward"])
 
   def step(self, action):
     return(asyncio.run(self._async_step(action)))
 
   # Action Space:
-  # 1 - grow leaves
-  # 2 - grow stem
-  # 3 - grow roots
-  # 4 - grow seeds
-  # 5 - accumulate starch
-  # 6 - open stomata
-  # 7 - close stomata
-  # 8 - grow new root
+  # 0 - grow leaves
+  # 1 - grow stem
+  # 2 - grow roots
+  # 3 - grow seeds
+  # 4 - accumulate starch
+  # 5 - open stomata
+  # 6 - close stomata
+  # 7 - grow new root
   # Observation Space:
   # [
   #  # Environment
@@ -110,23 +111,23 @@ class PlantEdEnv(gym.Env):
     terminated = False
     truncated = False
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
-      if action == 6:
+      if action == 5:
         self.stomata = True
-      if action == 7:
+      if action == 6:
         self.stomata = False
       game_state = {
           "delta_t": 60 * 10,
           "growth_percentages": {
-              "leaf_percent": 100 if action == 1 else 0,
-              "stem_percent": 100 if action == 2 else 0,
-              "root_percent": 100 if action == 3 else 0,
-              "seed_percent": 100 if action == 4 else 0,
-              "starch_percent": 100 if action in [5,6,7,8] else -100, # make starch when manipulating stomata or new roots
+              "leaf_percent": 100 if action == 0 else 0,
+              "stem_percent": 100 if action == 1 else 0,
+              "root_percent": 100 if action == 2 else 0,
+              "seed_percent": 100 if action == 3 else 0,
+              "starch_percent": 100 if action in [4,5,6,7] else -100, # make starch when manipulating stomata or new roots
               "stomata": self.stomata,
           },
           "increase_water_grid": None,
           "increase_nitrate_grid": None,
-          "buy_new_root": {'directions': [(686.0, 60.0)]} if action == 8 else {'directions': []}
+          "buy_new_root": {'directions': [(686.0, 60.0)]} if action == 7 else {'directions': []}
       }
       try:
         await websocket.send(json.dumps(game_state))
@@ -140,7 +141,6 @@ class PlantEdEnv(gym.Env):
         res["environment"]["accessible_water"] = (root_grid * water_grid).sum()
         res["environment"]["accessible_nitrate"] = (root_grid * nitrate_grid).sum()
 
-        self.write_log_row(res, game_state)
         observation = {
             "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
             "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
@@ -172,6 +172,7 @@ class PlantEdEnv(gym.Env):
         reward = 0.0
         truncated = True
 
+      self.write_log_row(res, game_state, reward)
       return(observation, reward, terminated, truncated, {})
 
   def calc_reward(self, res):
@@ -204,7 +205,9 @@ class PlantEdEnv(gym.Env):
       game_state["growth_percentages"]["root_percent"],
       game_state["growth_percentages"]["seed_percent"],
       game_state["growth_percentages"]["starch_percent"],
-      game_state["growth_percentages"]["stomata"]
+      game_state["growth_percentages"]["stomata"],
+
+      reward
       ])
 
 
