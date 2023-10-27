@@ -181,7 +181,7 @@ class PlantEdEnv(gym.Env):
     self.last_step_biomass = total_biomass
     return(reward)
 
-  def write_log_row(self, res, game_state):
+  def write_log_row(self, res, game_state, reward):
     self.csv_writer.writerow([
       res["environment"]["time"],
       res["environment"]["temperature"],
