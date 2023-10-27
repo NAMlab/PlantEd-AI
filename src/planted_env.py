@@ -54,13 +54,32 @@ class PlantEdEnv(gym.Env):
       self.close()
     self.stomata = True
     self.init_csv_logger()
-    self.server_process = multiprocessing.Process(target=self.start_server)
-    self.server_process.start()
+    #self.server_process = multiprocessing.Process(target=self.start_server)
+    #self.server_process.start()
+    #time.sleep(20)
+    print("Herro")
+    asyncio.run(self.load_level())
     self.running = True
-    time.sleep(20)
     self.current_step = 0
     observation, reward, terminated, truncated, info = self.step(7)
     return(observation,info)
+
+  async def load_level(self):
+    async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
+      message = {
+        "type": "load_level",
+        "message": {
+          "player_name": "Planted-AI",
+          "level_name": "LEVEL_NAME",
+        }
+      }
+      print("Sending:")
+      print(json.dumps(message))
+      await websocket.send(json.dumps(message))
+      response = await websocket.recv()
+      print("Received:")
+      print(response)
+
 
 
   def render(self):
@@ -116,31 +135,35 @@ class PlantEdEnv(gym.Env):
       if action == 6:
         self.stomata = False
       message = {
-          "type": "simulate",
-          "message": {
-            "delta_t": 60 * 10,
-            "growth_percentages": {
-                "leaf_percent": 100 if action == 0 else 0,
-                "stem_percent": 100 if action == 1 else 0,
-                "root_percent": 100 if action == 2 else 0,
-                "seed_percent": 0,
-                "starch_percent": 100 if action in [4,5,6,7] else -100, # make starch when manipulating stomata or new roots
-                "stomata": self.stomata,
-            },
-            "shop_actions":{
-               "buy_watering_can": None,
-               "buy_nitrate": None,
-               "buy_leaf": None,
-               "buy_branch": None,
-               "buy_root": None,
-               "buy_seed":  None
-            }
+        "type": "simulate",
+        "message": {
+          "delta_t": 60 * 10,
+          "growth_percentages": {
+            "leaf_percent": 100 if action == 0 else 0,
+            "stem_percent": 100 if action == 1 else 0,
+            "root_percent": 100 if action == 2 else 0,
+            "seed_percent": 0,
+            "starch_percent": 100 if action in [4,5,6,7] else -100, # make starch when manipulating stomata or new roots
+            "stomata": self.stomata,
+          },
+          "shop_actions":{
+            "buy_watering_can": None,
+            "buy_nitrate": None,
+            "buy_leaf": None,
+            "buy_branch": None,
+            "buy_root": None,
+            "buy_seed":  None
           }
         }
+      }
       try:
-        await websocket.send(json.dumps(game_state))
+        print("Sending:")
+        print(json.dumps(message))
+        await websocket.send(json.dumps(message))
         response = await websocket.recv()
         res = json.loads(response)
+        print("Received:")
+        print(response)
 
         root_grid = np.array(res["plant"]["root"]["root_grid"])
         nitrate_grid = np.array(res["environment"]["nitrate_grid"])
