@@ -12,7 +12,7 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 
-from PlantEd_Server.server import server
+from PlantEd.server import server
 
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
@@ -115,26 +115,34 @@ class PlantEdEnv(gym.Env):
         self.stomata = True
       if action == 6:
         self.stomata = False
-      game_state = {
-          "delta_t": 60 * 10,
-          "growth_percentages": {
-              "leaf_percent": 100 if action == 0 else 0,
-              "stem_percent": 100 if action == 1 else 0,
-              "root_percent": 100 if action == 2 else 0,
-              "seed_percent": 100 if action == 3 else 0,
-              "starch_percent": 100 if action in [4,5,6,7] else -100, # make starch when manipulating stomata or new roots
-              "stomata": self.stomata,
-          },
-          "increase_water_grid": None,
-          "increase_nitrate_grid": None,
-          "buy_new_root": {'directions': [(686.0, 60.0)]} if action == 7 else {'directions': []}
-      }
+      message = {
+          "type": "simulate",
+          "message": {
+            "delta_t": 60 * 10,
+            "growth_percentages": {
+                "leaf_percent": 100 if action == 0 else 0,
+                "stem_percent": 100 if action == 1 else 0,
+                "root_percent": 100 if action == 2 else 0,
+                "seed_percent": 0,
+                "starch_percent": 100 if action in [4,5,6,7] else -100, # make starch when manipulating stomata or new roots
+                "stomata": self.stomata,
+            },
+            "shop_actions":{
+               "buy_watering_can": None,
+               "buy_nitrate": None,
+               "buy_leaf": None,
+               "buy_branch": None,
+               "buy_root": None,
+               "buy_seed":  None
+            }
+          }
+        }
       try:
         await websocket.send(json.dumps(game_state))
         response = await websocket.recv()
         res = json.loads(response)
 
-        root_grid = np.array(list(res["plant"]["root"]["root_grid"].values())).reshape((20,6))
+        root_grid = np.array(res["plant"]["root"]["root_grid"])
         nitrate_grid = np.array(res["environment"]["nitrate_grid"])
         water_grid = np.array(res["environment"]["water_grid"])
 
@@ -149,10 +157,11 @@ class PlantEdEnv(gym.Env):
             #"accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
 
             "biomasses": np.array([
-              res["plant"]["leaf_biomass"],
-              res["plant"]["stem_biomass"],
-              res["plant"]["root_biomass"],
-              res["plant"]["seed_biomass"],
+              # res["plant"]["leaf_biomass"],
+              # res["plant"]["stem_biomass"],
+              # res["plant"]["root_biomass"],
+              # res["plant"]["seed_biomass"],
+              0, 0, 0, 0
               ]).astype(np.float32),
             "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
             "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
