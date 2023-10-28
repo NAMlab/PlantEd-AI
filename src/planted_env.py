@@ -23,7 +23,6 @@ class PlantEdEnv(gym.Env):
 
   def __init__(self, instance_name="PlantEd_instance", port=8765):
     self.port = port
-    self.last_step_biomass = 0.0
     self.instance_name = instance_name
     self.csv_file = None
     self.server_process = None
@@ -50,22 +49,30 @@ class PlantEdEnv(gym.Env):
       self.csv_file.close()
     if(self.server_process):
       self.server_process.terminate()
+      print("Terminated server process, waiting 5 sec")
+      time.sleep(5)
     self.running = False
 
   def reset(self, seed=None, options=None):
     if self.running:
       self.close()
-    self.stomata = True
+
     self.init_csv_logger()
-    #self.server_process = multiprocessing.Process(target=self.start_server)
-    #self.server_process.start()
-    #time.sleep(20)
-    print("Herro")
+
+    self.server_process = multiprocessing.Process(target=self.start_server)
+    self.server_process.start()
+    print("Server process started, waiting 10 sec...")
+    time.sleep(10)
     asyncio.run(self.load_level())
+
     self.running = True
     self.current_step = 0
+    self.last_step_biomass = 0.0
+    self.stomata = True
+    self.last_observation = None
+
     observation, reward, terminated, truncated, info = self.step(7)
-    return(observation,info)
+    return(observation, info)
 
   async def load_level(self):
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
@@ -76,14 +83,9 @@ class PlantEdEnv(gym.Env):
           "level_name": "LEVEL_NAME",
         }
       }
-      print("Sending:")
-      print(json.dumps(message))
       await websocket.send(json.dumps(message))
       response = await websocket.recv()
-      print("Received:")
       print(response)
-
-
 
   def render(self):
     pass
@@ -168,13 +170,9 @@ class PlantEdEnv(gym.Env):
         }
       }
       try:
-        print("Sending:")
-        print(json.dumps(message))
         await websocket.send(json.dumps(message))
         response = await websocket.recv()
         res = json.loads(response)
-        print("Received:")
-        print(response)
 
         root_grid = np.array(res["plant"]["root"]["root_grid"])
         nitrate_grid = np.array(res["environment"]["nitrate_grid"])
@@ -189,8 +187,9 @@ class PlantEdEnv(gym.Env):
             "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
             "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
             "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
-            #"accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
-            #"accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
+
+            # "accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
+            # "accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
 
             "biomasses": np.array([
               biomasses.leaf,
@@ -201,7 +200,7 @@ class PlantEdEnv(gym.Env):
             "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
             "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
 
-            "stomata_state": self.stomata
+            "stomata_state": np.array([self.stomata])
           }
         self.last_observation = observation
 
@@ -209,6 +208,7 @@ class PlantEdEnv(gym.Env):
         self.current_step += 1
         if self.current_step > self.max_steps:
           terminated = True
+        self.write_log_row(res, message["message"], biomasses, reward)
       except websockets.exceptions.ConnectionClosedError:
         print("SERVER CRASHED")
         # @TODO This is not optimal because it pretends that what the actor did had no influence at all.
@@ -216,7 +216,6 @@ class PlantEdEnv(gym.Env):
         reward = 0.0
         truncated = True
 
-      self.write_log_row(res, message["message"], biomasses, reward)
       return(observation, reward, terminated, truncated, {})
 
   def calc_reward(self, biomasses):
