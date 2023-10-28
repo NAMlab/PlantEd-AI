@@ -32,7 +32,7 @@ def make_env():
     :param rank: index of the subprocess
     """
     def _init():
-        env = PlantEdEnv("ep1")
+        env = PlantEdEnv("World1")
         env.reset()
         return env
     return _init

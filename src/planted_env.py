@@ -27,6 +27,7 @@ class PlantEdEnv(gym.Env):
     self.csv_file = None
     self.server_process = None
     self.running = False
+    self.game_counter = 0 # add 1 at each reset --> to save all the logs
 
     self.action_space = spaces.Discrete(7)
     self.observation_space = spaces.Dict({
@@ -57,6 +58,7 @@ class PlantEdEnv(gym.Env):
     if self.running:
       self.close()
 
+    self.game_counter += 1
     self.init_csv_logger()
 
     self.server_process = multiprocessing.Process(target=self.start_server)
@@ -96,7 +98,7 @@ class PlantEdEnv(gym.Env):
     server.start(self.port)
 
   def init_csv_logger(self):
-    self.csv_file = open(self.instance_name + '.csv', 'w', newline='')
+    self.csv_file = open('game_logs/' + self.instance_name + '_' + str(self.game_counter) + '.csv', 'w', newline='')
     self.csv_writer = csv.writer(self.csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     self.csv_writer.writerow(["time","temperature","sun_intensity", "humidity","precipitation","accessible_water","accessible_nitrate",
         "leaf_biomass", "stem_biomass", "root_biomass", "seed_biomass", "starch_pool", "max_starch_pool", "water_pool", "max_water_pool",
@@ -140,6 +142,7 @@ class PlantEdEnv(gym.Env):
   #  stomata_state
   # ]
   async def _async_step(self,action):
+    print("step.")
     terminated = False
     truncated = False
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
@@ -156,7 +159,7 @@ class PlantEdEnv(gym.Env):
             "stem_percent": 100 if action == 1 else 0,
             "root_percent": 100 if action in [2,7] else 0,
             "seed_percent": 0,
-            "starch_percent": 100 if action in [4,5,6] else -100, # make starch when manipulating stomata or new roots
+            "starch_percent": 100 if action in [3,4,5,6] else -100, # make starch when manipulating stomata or new roots
             "stomata": self.stomata,
           },
           "shop_actions":{
