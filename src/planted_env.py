@@ -93,7 +93,7 @@ class PlantEdEnv(gym.Env):
 
     self.running = True
     self.current_step = 0
-    self.last_step_biomass = 0.0
+    self.last_step_biomass = -1
     self.stomata = True
     self.last_observation = None
 
@@ -122,7 +122,7 @@ class PlantEdEnv(gym.Env):
     server.start(self.port)
 
   def init_csv_logger(self):
-    self.csv_file = open('game_logs/' + self.instance_name + '_' + str(self.game_counter) + '.csv', 'w', newline='')
+    self.csv_file = open('game_logs/' + self.instance_name + '_run' + str(self.game_counter) + '.csv', 'w', newline='')
     self.csv_writer = csv.writer(self.csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     self.csv_writer.writerow(["time","temperature","sun_intensity", "humidity","precipitation","accessible_water","accessible_nitrate",
         "leaf_biomass", "stem_biomass", "root_biomass", "seed_biomass", "starch_pool", "max_starch_pool", "water_pool", "max_water_pool",
@@ -224,7 +224,7 @@ class PlantEdEnv(gym.Env):
 
   def calc_reward(self, biomasses):
     total_biomass = biomasses.leaf + biomasses.stem + biomasses.root + biomasses.seed 
-    reward = total_biomass - self.last_step_biomass
+    reward = 0 if self.last_step_biomass == -1 else (total_biomass - self.last_step_biomass) / self.last_step_biomass
     self.last_step_biomass = total_biomass
     return(reward)
 

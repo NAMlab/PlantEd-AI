@@ -39,7 +39,7 @@ def make_env():
 
 envs = DummyVecEnv([make_env()])
 
-model = A2C(policy = "MultiInputPolicy", env = envs, verbose=1)
+model = A2C(policy = "MultiInputPolicy", env = envs, verbose=2)
 
 model.learn(100000, log_interval=10)
 envs.close()
