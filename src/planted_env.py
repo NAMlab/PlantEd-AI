@@ -1,6 +1,7 @@
 import csv
 import sys
 import os
+import glob
 import asyncio
 import json
 import websockets
@@ -28,8 +29,28 @@ class PlantEdEnv(gym.Env):
     self.server_process = None
     self.running = False
     self.game_counter = 0 # add 1 at each reset --> to save all the logs
+    # Remove previous game logs
+    for f in glob.glob('game_logs/*.csv'):
+      os.remove(f)
 
-    self.action_space = spaces.Discrete(7)
+    self.action_space = spaces.Discrete(6)
+    # Action Space:
+    # 0 - grow leaves
+    # 1 - grow stem
+    # 2 - grow roots
+    # 3 - accumulate starch
+    # 
+    # 4 - open stomata
+    # 5 - close stomata
+    # 
+    # @TODO add these next:
+    # 6 - buy leaf
+    # 7 - buy stem
+    # 8 - buy root
+    # 9 - buy flower
+    #
+    # 10 - watering can
+    # 11 - add fertilizer
     self.observation_space = spaces.Dict({
       # Environment
       "temperature": spaces.Box(-200, 200),
@@ -116,39 +137,14 @@ class PlantEdEnv(gym.Env):
   def step(self, action):
     return(asyncio.run(self._async_step(action)))
 
-  # Action Space:
-  # 0 - grow leaves
-  # 1 - grow stem
-  # 2 - grow roots
-  # 3 - grow seeds
-  # 4 - accumulate starch
-  # 5 - open stomata
-  # 6 - close stomata
-  # 7 - grow new root
-  # Observation Space:
-  # [
-  #  # Environment
-  #  temperature,
-  #  sun_intensity,
-  #  humidity,
-  #
-  #  # Plant
-  #  leaf_biomass,
-  #  stem_biomass,
-  #  root_biomass,
-  #  seed_biomass,
-  #  starch_pool,
-  #  max_starch_pool,
-  #  stomata_state
-  # ]
   async def _async_step(self,action):
     print("step.")
     terminated = False
     truncated = False
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
-      if action == 5:
+      if action == 4:
         self.stomata = True
-      if action == 6:
+      if action == 5:
         self.stomata = False
       message = {
         "type": "simulate",
@@ -157,9 +153,9 @@ class PlantEdEnv(gym.Env):
           "growth_percentages": {
             "leaf_percent": 100 if action == 0 else 0,
             "stem_percent": 100 if action == 1 else 0,
-            "root_percent": 100 if action in [2,7] else 0,
+            "root_percent": 100 if action == 2 else 0,
             "seed_percent": 0,
-            "starch_percent": 100 if action in [3,4,5,6] else -100, # make starch when manipulating stomata or new roots
+            "starch_percent": 100 if action in [3,4,5] else -100, # make starch when manipulating stomata or new roots
             "stomata": self.stomata,
           },
           "shop_actions":{
