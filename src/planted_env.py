@@ -5,6 +5,7 @@ import asyncio
 import json
 import websockets
 import multiprocessing
+import collections
 import time
 
 import numpy as np
@@ -13,6 +14,8 @@ import gymnasium as gym
 from gymnasium import spaces
 
 from PlantEd.server import server
+
+Biomass = collections.namedtuple("Biomass", "leaf stem root seed")
 
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
@@ -98,6 +101,14 @@ class PlantEdEnv(gym.Env):
         "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", "stomata",
         "reward"])
 
+  def get_biomasses(self, res):
+    leaf = sum([x[1] for x in res["plant"]["leafs_biomass"]])
+    stem = sum([x[1] for x in res["plant"]["stems_biomass"]])
+    root = res["plant"]["roots_biomass"]
+    seed = sum([x[1] for x in res["plant"]["seeds_biomass"]])
+    return(Biomass(leaf, stem, root, seed))
+
+
   def step(self, action):
     return(asyncio.run(self._async_step(action)))
 
@@ -141,9 +152,9 @@ class PlantEdEnv(gym.Env):
           "growth_percentages": {
             "leaf_percent": 100 if action == 0 else 0,
             "stem_percent": 100 if action == 1 else 0,
-            "root_percent": 100 if action == 2 else 0,
+            "root_percent": 100 if action in [2,7] else 0,
             "seed_percent": 0,
-            "starch_percent": 100 if action in [4,5,6,7] else -100, # make starch when manipulating stomata or new roots
+            "starch_percent": 100 if action in [4,5,6] else -100, # make starch when manipulating stomata or new roots
             "stomata": self.stomata,
           },
           "shop_actions":{
@@ -169,6 +180,8 @@ class PlantEdEnv(gym.Env):
         nitrate_grid = np.array(res["environment"]["nitrate_grid"])
         water_grid = np.array(res["environment"]["water_grid"])
 
+        biomasses = self.get_biomasses(res)
+
         res["environment"]["accessible_water"] = (root_grid * water_grid).sum()
         res["environment"]["accessible_nitrate"] = (root_grid * nitrate_grid).sum()
 
@@ -180,20 +193,19 @@ class PlantEdEnv(gym.Env):
             #"accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
 
             "biomasses": np.array([
-              # res["plant"]["leaf_biomass"],
-              # res["plant"]["stem_biomass"],
-              # res["plant"]["root_biomass"],
-              # res["plant"]["seed_biomass"],
-              0, 0, 0, 0
+              biomasses.leaf,
+              biomasses.stem,
+              biomasses.root,
+              biomasses.seed,
               ]).astype(np.float32),
             "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
             "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
 
-            "stomata_state": np.array([game_state["growth_percentages"]["stomata"]])
+            "stomata_state": self.stomata
           }
         self.last_observation = observation
 
-        reward = self.calc_reward(res)
+        reward = self.calc_reward(biomasses)
         self.current_step += 1
         if self.current_step > self.max_steps:
           terminated = True
@@ -204,16 +216,16 @@ class PlantEdEnv(gym.Env):
         reward = 0.0
         truncated = True
 
-      self.write_log_row(res, game_state, reward)
+      self.write_log_row(res, message["message"], biomasses, reward)
       return(observation, reward, terminated, truncated, {})
 
-  def calc_reward(self, res):
-    total_biomass = res["plant"]["leaf_biomass"] + res["plant"]["stem_biomass"] + res["plant"]["root_biomass"] + res["plant"]["seed_biomass"]
+  def calc_reward(self, biomasses):
+    total_biomass = biomasses.leaf + biomasses.stem + biomasses.root + biomasses.seed 
     reward = total_biomass - self.last_step_biomass
     self.last_step_biomass = total_biomass
     return(reward)
 
-  def write_log_row(self, res, game_state, reward):
+  def write_log_row(self, res, game_state, biomasses, reward):
     self.csv_writer.writerow([
       res["environment"]["time"],
       res["environment"]["temperature"],
@@ -223,10 +235,10 @@ class PlantEdEnv(gym.Env):
       res["environment"]["accessible_water"],
       res["environment"]["accessible_nitrate"],
 
-      res["plant"]["leaf_biomass"],
-      res["plant"]["stem_biomass"],
-      res["plant"]["root_biomass"],
-      res["plant"]["seed_biomass"],
+      biomasses.leaf,
+      biomasses.stem,
+      biomasses.root,
+      biomasses.seed,
       res["plant"]["starch_pool"],
       res["plant"]["max_starch_pool"],
       res["plant"]["water_pool"],
