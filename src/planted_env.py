@@ -8,6 +8,7 @@ import websockets
 import multiprocessing
 import collections
 import time
+from enum import Enum
 
 import numpy as np
 
@@ -17,6 +18,24 @@ from gymnasium import spaces
 from PlantEd.server import server
 
 Biomass = collections.namedtuple("Biomass", "leaf stem root seed")
+
+# Action Space
+Action = Enum('Action', [ 
+  'GROW_LEAVES',
+  'GROW_STEM',
+  'GROW_ROOTS',
+  'PRODUCE_STARCH',
+  'OPEN_STOMATA',
+  'CLOSE_STOMATA'
+  ], start=0) # start at 0 because the gym action space starts at 0
+# @TODO add these next:
+# 6 - buy leaf
+# 7 - buy stem
+# 8 - buy root
+# 9 - buy flower
+#
+# 10 - watering can
+# 11 - add fertilizer
 
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
@@ -33,24 +52,8 @@ class PlantEdEnv(gym.Env):
     for f in glob.glob('game_logs/*.csv'):
       os.remove(f)
 
-    self.action_space = spaces.Discrete(6)
-    # Action Space:
-    # 0 - grow leaves
-    # 1 - grow stem
-    # 2 - grow roots
-    # 3 - accumulate starch
-    # 
-    # 4 - open stomata
-    # 5 - close stomata
-    # 
-    # @TODO add these next:
-    # 6 - buy leaf
-    # 7 - buy stem
-    # 8 - buy root
-    # 9 - buy flower
-    #
-    # 10 - watering can
-    # 11 - add fertilizer
+    # See Action enum above for action space.
+    self.action_space = spaces.Discrete(len(Action))
     self.observation_space = spaces.Dict({
       # Environment
       "temperature": spaces.Box(-200, 200),
@@ -94,7 +97,7 @@ class PlantEdEnv(gym.Env):
     self.stomata = True
     self.last_observation = None
 
-    observation, reward, terminated, truncated, info = self.step(7)
+    observation, reward, terminated, truncated, info = self.step(2)
     return(observation, info)
 
   async def load_level(self):
@@ -123,7 +126,7 @@ class PlantEdEnv(gym.Env):
     self.csv_writer = csv.writer(self.csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     self.csv_writer.writerow(["time","temperature","sun_intensity", "humidity","precipitation","accessible_water","accessible_nitrate",
         "leaf_biomass", "stem_biomass", "root_biomass", "seed_biomass", "starch_pool", "max_starch_pool", "water_pool", "max_water_pool",
-        "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", "stomata",
+        "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", "action",
         "reward"])
 
   def get_biomasses(self, res):
@@ -137,25 +140,27 @@ class PlantEdEnv(gym.Env):
   def step(self, action):
     return(asyncio.run(self._async_step(action)))
 
-  async def _async_step(self,action):
-    print("step.")
+  async def _async_step(self, a):
+    print("step. ", end="")
+    action = Action(a)
+    print(action.name)
     terminated = False
     truncated = False
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
-      if action == 4:
+      if action == Action.OPEN_STOMATA:
         self.stomata = True
-      if action == 5:
+      if action == Action.CLOSE_STOMATA:
         self.stomata = False
       message = {
         "type": "simulate",
         "message": {
           "delta_t": 60 * 10,
           "growth_percentages": {
-            "leaf_percent": 100 if action == 0 else 0,
-            "stem_percent": 100 if action == 1 else 0,
-            "root_percent": 100 if action == 2 else 0,
+            "leaf_percent": 100 if action == Action.GROW_LEAVES else 0,
+            "stem_percent": 100 if action == Action.GROW_STEM else 0,
+            "root_percent": 100 if action == Action.GROW_ROOTS else 0,
             "seed_percent": 0,
-            "starch_percent": 100 if action in [3,4,5] else -100, # make starch when manipulating stomata or new roots
+            "starch_percent": 100 if action not in [Action.GROW_LEAVES, Action.GROW_STEM, Action.GROW_ROOTS] else -100, # make starch when manipulating stomata or new roots
             "stomata": self.stomata,
           },
           "shop_actions":{
@@ -207,7 +212,7 @@ class PlantEdEnv(gym.Env):
         self.current_step += 1
         if self.current_step > self.max_steps:
           terminated = True
-        self.write_log_row(res, message["message"], biomasses, reward)
+        self.write_log_row(res, message["message"], biomasses, action, reward)
       except websockets.exceptions.ConnectionClosedError:
         print("SERVER CRASHED")
         # @TODO This is not optimal because it pretends that what the actor did had no influence at all.
@@ -223,7 +228,7 @@ class PlantEdEnv(gym.Env):
     self.last_step_biomass = total_biomass
     return(reward)
 
-  def write_log_row(self, res, game_state, biomasses, reward):
+  def write_log_row(self, res, game_state, biomasses, action, reward):
     self.csv_writer.writerow([
       res["environment"]["time"],
       res["environment"]["temperature"],
@@ -247,7 +252,7 @@ class PlantEdEnv(gym.Env):
       game_state["growth_percentages"]["root_percent"],
       game_state["growth_percentages"]["seed_percent"],
       game_state["growth_percentages"]["starch_percent"],
-      game_state["growth_percentages"]["stomata"],
+      action.name,
 
       reward
       ])
