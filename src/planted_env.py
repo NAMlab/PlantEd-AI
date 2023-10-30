@@ -8,6 +8,7 @@ import websockets
 import multiprocessing
 import collections
 import time
+import random
 from enum import Enum
 
 import numpy as np
@@ -26,14 +27,13 @@ Action = Enum('Action', [
   'GROW_ROOTS',
   'PRODUCE_STARCH',
   'OPEN_STOMATA',
-  'CLOSE_STOMATA'
+  'CLOSE_STOMATA',
+  'BUY_LEAF',
+  'BUY_STEM',
+  'BUY_ROOT',
+  'BUY_SEED'
   ], start=0) # start at 0 because the gym action space starts at 0
 # @TODO add these next:
-# 6 - buy leaf
-# 7 - buy stem
-# 8 - buy root
-# 9 - buy flower
-#
 # 10 - watering can
 # 11 - add fertilizer
 
@@ -58,10 +58,14 @@ class PlantEdEnv(gym.Env):
       "temperature": spaces.Box(-200, 200),
       "sun_intensity": spaces.Box(-1, 1),
       "humidity": spaces.Box(0, 100),
+      "accessible_water": spaces.Box(0, 6000000),
+      "accessible_nitrate": spaces.Box(0, 1200),
+      "green_thumbs": spaces.Box(0, 25),
       # Plant
-      "biomasses": spaces.Box(0, 1000, shape=(4,)), #leaf, stem, root, seed
-      "starch_pool": spaces.Box(0, 1000),
-      "max_starch_pool": spaces.Box(0, 1000),
+      "biomasses": spaces.Box(0, 100, shape=(4,)), #leaf, stem, root, seed
+      "n_organs": spaces.Box(0, 25, shape=(4,)), #leaf, stem, root, seed
+      "starch_pool": spaces.Box(0, 100),
+      "max_starch_pool": spaces.Box(0, 100),
       "stomata_state": spaces.MultiBinary(1)
       })
 
@@ -134,6 +138,14 @@ class PlantEdEnv(gym.Env):
     seed = sum([x[1] for x in res["plant"]["seeds_biomass"]])
     return(Biomass(leaf, stem, root, seed))
 
+  def get_n_organs(self, res):
+    return([
+     len(res["plant"]["leafs_biomass"]),
+     len(res["plant"]["stems_biomass"]),
+     len(res["plant"]["root"]["first_letters"]),
+     len(res["plant"]["seeds_biomass"]),
+    ])
+
 
   def step(self, action):
     return(asyncio.run(self._async_step(action)))
@@ -164,10 +176,10 @@ class PlantEdEnv(gym.Env):
           "shop_actions":{
             "buy_watering_can": None,
             "buy_nitrate": None,
-            "buy_leaf": None,
-            "buy_branch": None,
-            "buy_root": None,
-            "buy_seed":  None
+            "buy_leaf": 1 if action == Action.BUY_LEAF else None,
+            "buy_branch": 1 if action == Action.BUY_STEM else None,
+            "buy_root": {'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
+            "buy_seed": 1 if action == Action.BUY_SEED else None
           }
         }
       }
@@ -187,22 +199,24 @@ class PlantEdEnv(gym.Env):
         res["environment"]["accessible_nitrate"] = (root_grid * nitrate_grid).sum()
 
         observation = {
+            # Environment
             "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
             "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
             "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
+            "accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
+            "accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
+            "green_thumbs": np.array([res["green_thumbs"]]).astype(np.float32),
 
-            # "accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
-            # "accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
-
+            # Plant
             "biomasses": np.array([
               biomasses.leaf,
               biomasses.stem,
               biomasses.root,
               biomasses.seed,
               ]).astype(np.float32),
+            "n_organs": np.array(self.get_n_organs(res)).astype(np.float32),
             "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
             "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
-
             "stomata_state": np.array([self.stomata])
           }
         self.last_observation = observation
