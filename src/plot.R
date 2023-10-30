@@ -14,8 +14,9 @@ for(f in files) {
     best.episode = ep.name
   }
   l[8:11] = log(l[8:11])
-  y.max = max(l[8:11])
-  y.min = min(l[8:11])
+  l[l == -Inf] <- NA
+  y.max = max(l[8:11], na.rm = T)
+  y.min = min(l[8:11], na.rm = T)
   
   pdf(paste0("pdfs/", ep.name, ".pdf"), 7, 14)
   par(mfrow=c(10,1), mar=c(2, 4.5, 0.2, 0))
@@ -36,10 +37,10 @@ for(f in files) {
   plot(l$accessible_nitrate ~ l$time, type="l", ylab="Accessible Nitrate")
   
   plot(l$leaf_percent ~ l$time, type="n", ylim=c(0, 100), ylab="Growth Percentages")
-  lines(rollmean(l$leaf_percent, k = 5, fill=0) ~ l$time, col="darkgreen")
-  lines(rollmean(l$stem_percent, k = 5, fill=0) ~ l$time, col="green")
-  lines(rollmean(l$root_percent, k = 5, fill=0) ~ l$time, col="brown")
-  lines(rollmean(l$starch_percent, k = 5, fill=0) ~ l$time, col="black")
+  lines(rollmean(l$leaf_percent, k = 10, fill=0) ~ l$time, col="darkgreen")
+  lines(rollmean(l$stem_percent, k = 10, fill=0) ~ l$time, col="green")
+  lines(rollmean(l$root_percent, k = 10, fill=0) ~ l$time, col="brown")
+  lines(rollmean(l$starch_percent, k = 10, fill=0) ~ l$time, col="black", lty=5)
   
   plot(l$leaf_biomass ~ l$time, type="n", ylim=c(y.min, y.max), ylab="log(Biomass)")
   lines(l$leaf_biomass ~ l$time, col="darkgreen")

@@ -39,7 +39,6 @@ Action = Enum('Action', [
 
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
-  max_steps = 6 * 24 * 35 # @TODO this is how many steps the world lasts, should be determined by server not by me.
 
   def __init__(self, instance_name="PlantEd_instance", port=8765):
     self.port = port
@@ -92,7 +91,6 @@ class PlantEdEnv(gym.Env):
     asyncio.run(self.load_level())
 
     self.running = True
-    self.current_step = 0
     self.last_step_biomass = -1
     self.stomata = True
     self.last_observation = None
@@ -178,6 +176,7 @@ class PlantEdEnv(gym.Env):
         response = await websocket.recv()
         res = json.loads(response)
 
+        terminated = not res["running"]
         root_grid = np.array(res["plant"]["root"]["root_grid"])
         nitrate_grid = np.array(res["environment"]["nitrate_grid"])
         water_grid = np.array(res["environment"]["water_grid"])
@@ -209,9 +208,6 @@ class PlantEdEnv(gym.Env):
         self.last_observation = observation
 
         reward = self.calc_reward(biomasses)
-        self.current_step += 1
-        if self.current_step > self.max_steps:
-          terminated = True
         self.write_log_row(res, message["message"], biomasses, action, reward)
       except websockets.exceptions.ConnectionClosedError:
         print("SERVER CRASHED")
