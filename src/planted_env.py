@@ -128,8 +128,9 @@ class PlantEdEnv(gym.Env):
     self.csv_writer = csv.writer(self.csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     self.csv_writer.writerow(["time","temperature","sun_intensity", "humidity","precipitation","accessible_water","accessible_nitrate",
         "leaf_biomass", "stem_biomass", "root_biomass", "seed_biomass", "starch_pool", "max_starch_pool", "water_pool", "max_water_pool",
-        "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", "action",
-        "reward"])
+        "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", 
+        "n_leaves", "n_stems", "n_roots", "n_seeds", "green_thumbs",
+        "action", "reward"])
 
   def get_biomasses(self, res):
     leaf = sum([x[1] for x in res["plant"]["leafs_biomass"]])
@@ -164,7 +165,7 @@ class PlantEdEnv(gym.Env):
       message = {
         "type": "simulate",
         "message": {
-          "delta_t": 60 * 10,
+          "delta_t": 6 * 60 * 10,
           "growth_percentages": {
             "leaf_percent": 100 if action == Action.GROW_LEAVES else 0,
             "stem_percent": 100 if action == Action.GROW_STEM else 0,
@@ -198,6 +199,8 @@ class PlantEdEnv(gym.Env):
         res["environment"]["accessible_water"] = (root_grid * water_grid).sum()
         res["environment"]["accessible_nitrate"] = (root_grid * nitrate_grid).sum()
 
+        n_organs = self.get_n_organs(res)
+
         observation = {
             # Environment
             "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
@@ -214,7 +217,7 @@ class PlantEdEnv(gym.Env):
               biomasses.root,
               biomasses.seed,
               ]).astype(np.float32),
-            "n_organs": np.array(self.get_n_organs(res)).astype(np.float32),
+            "n_organs": np.array(n_organs).astype(np.float32),
             "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
             "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
             "stomata_state": np.array([self.stomata])
@@ -222,7 +225,7 @@ class PlantEdEnv(gym.Env):
         self.last_observation = observation
 
         reward = self.calc_reward(biomasses)
-        self.write_log_row(res, message["message"], biomasses, action, reward)
+        self.write_log_row(res, message["message"], biomasses, n_organs, action, reward)
       except websockets.exceptions.ConnectionClosedError:
         print("SERVER CRASHED")
         # @TODO This is not optimal because it pretends that what the actor did had no influence at all.
@@ -238,7 +241,7 @@ class PlantEdEnv(gym.Env):
     self.last_step_biomass = total_biomass
     return(reward)
 
-  def write_log_row(self, res, game_state, biomasses, action, reward):
+  def write_log_row(self, res, game_state, biomasses, n_organs, action, reward):
     self.csv_writer.writerow([
       res["environment"]["time"],
       res["environment"]["temperature"],
@@ -262,8 +265,14 @@ class PlantEdEnv(gym.Env):
       game_state["growth_percentages"]["root_percent"],
       game_state["growth_percentages"]["seed_percent"],
       game_state["growth_percentages"]["starch_percent"],
-      action.name,
 
+      n_organs[0], # leaf
+      n_organs[1], # stems
+      n_organs[2], # root
+      n_organs[3], # seed
+      res["green_thumbs"],
+
+      action.name,
       reward
       ])
 

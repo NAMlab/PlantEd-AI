@@ -44,9 +44,17 @@ for(f in files) {
   
   plot(l$leaf_biomass ~ l$time, type="n", ylim=c(y.min, y.max), ylab="log(Biomass)")
   lines(l$leaf_biomass ~ l$time, col="darkgreen")
+  actions = l[l$action == "BUY_LEAF",]
+  points(actions$time, actions$leaf_biomass, pch="*", col="darkgreen")
   lines(l$stem_biomass ~ l$time, col="green")
+  actions = l[l$action == "BUY_STEM",]
+  points(actions$time, actions$stem_biomass, pch="*", col="green")
   lines(l$root_biomass ~ l$time, col="brown")
+  actions = l[l$action == "BUY_ROOT",]
+  points(actions$time, actions$root_biomass, pch="*", col="brown")
   lines(l$seed_biomass ~ l$time, col="red")
+  actions = l[l$action == "BUY_SEED",]
+  points(actions$time, actions$seed_biomass, pch="*", col="red")
   legend("topleft", col=c("darkgreen", "green", "brown", "red", "black", "grey"),
          legend = c("Leaf", "Stem", "Root", "Seed", "Starch Pool", "Max Starch Pool"), lty=c(rep(1, 5), 2), lwd=2)
   plot(l$starch_pool ~ l$time, col="black", type="l", ylab="Starch Pool")
