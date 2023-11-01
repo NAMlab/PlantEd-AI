@@ -236,9 +236,8 @@ class PlantEdEnv(gym.Env):
       return(observation, reward, terminated, truncated, {})
 
   def calc_reward(self, biomasses):
-    total_biomass = biomasses.leaf + biomasses.stem + biomasses.root + biomasses.seed 
-    reward = 0 if self.last_step_biomass == -1 else (total_biomass - self.last_step_biomass) / self.last_step_biomass
-    self.last_step_biomass = total_biomass
+    reward = 0 if self.last_step_biomass == -1 else biomasses.seed - self.last_step_biomass
+    self.last_step_biomass = biomasses.seed
     return(reward)
 
   def write_log_row(self, res, game_state, biomasses, n_organs, action, reward):
