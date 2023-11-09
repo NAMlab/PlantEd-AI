@@ -2,7 +2,7 @@ import os
 
 import gymnasium as gym
 
-from stable_baselines3 import A2C
+from stable_baselines3 import A2C, PPO
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.env_util import make_vec_env
@@ -39,11 +39,11 @@ def make_env():
 
 envs = DummyVecEnv([make_env()])
 
-model = A2C(policy = "MultiInputPolicy", env = envs, verbose=2)
+model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2)
 
-model.learn(100000, log_interval=10)
+model.learn(150000, log_interval=10)
 envs.close()
 
 print(model)
-model.save("model_a2c")
+model.save("model_ppo")
 

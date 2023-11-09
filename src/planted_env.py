@@ -64,6 +64,7 @@ class PlantEdEnv(gym.Env):
       # Plant
       "biomasses": spaces.Box(0, 100, shape=(4,)), #leaf, stem, root, seed
       "n_organs": spaces.Box(0, 25, shape=(4,)), #leaf, stem, root, seed
+      "open_spots": spaces.Box(0, 100),
       "starch_pool": spaces.Box(0, 100),
       "max_starch_pool": spaces.Box(0, 100),
       "stomata_state": spaces.MultiBinary(1)
@@ -95,7 +96,7 @@ class PlantEdEnv(gym.Env):
     asyncio.run(self.load_level())
 
     self.running = True
-    self.last_step_biomass = -1
+    self.last_step_score = -1
     self.stomata = True
     self.last_observation = None
 
@@ -129,7 +130,7 @@ class PlantEdEnv(gym.Env):
     self.csv_writer.writerow(["time","temperature","sun_intensity", "humidity","precipitation","accessible_water","accessible_nitrate",
         "leaf_biomass", "stem_biomass", "root_biomass", "seed_biomass", "starch_pool", "max_starch_pool", "water_pool", "max_water_pool",
         "leaf_percent", "stem_percent", "root_percent", "seed_percent", "starch_percent", 
-        "n_leaves", "n_stems", "n_roots", "n_seeds", "green_thumbs",
+        "n_leaves", "n_stems", "n_roots", "n_seeds", "green_thumbs", "open_spots",
         "action", "reward"])
 
   def get_biomasses(self, res):
@@ -218,6 +219,7 @@ class PlantEdEnv(gym.Env):
               biomasses.seed,
               ]).astype(np.float32),
             "n_organs": np.array(n_organs).astype(np.float32),
+            "open_spots": np.array([res["plant"]["open_spots"]]).astype(np.float32),
             "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
             "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
             "stomata_state": np.array([self.stomata])
@@ -236,8 +238,9 @@ class PlantEdEnv(gym.Env):
       return(observation, reward, terminated, truncated, {})
 
   def calc_reward(self, biomasses):
-    reward = 0 if self.last_step_biomass == -1 else biomasses.seed - self.last_step_biomass
-    self.last_step_biomass = biomasses.seed
+    current_score = biomasses.seed + (biomasses.leaf + biomasses.stem + biomasses.root) * 0.01
+    reward = 0 if self.last_step_score == -1 else current_score - self.last_step_score
+    self.last_step_score = current_score
     return(reward)
 
   def write_log_row(self, res, game_state, biomasses, n_organs, action, reward):
@@ -270,6 +273,7 @@ class PlantEdEnv(gym.Env):
       n_organs[2], # root
       n_organs[3], # seed
       res["green_thumbs"],
+      res["plant"]["open_spots"],
 
       action.name,
       reward
