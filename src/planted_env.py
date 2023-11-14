@@ -148,94 +148,98 @@ class PlantEdEnv(gym.Env):
      len(res["plant"]["seeds_biomass"]),
     ])
 
-
-  def step(self, action):
-    return(asyncio.run(self._async_step(action)))
-
-  async def _async_step(self, a):
-    print("step. ", end="")
-    action = Action(a)
-    print(action.name)
+  async def execute_step(self, message):
     terminated = False
     truncated = False
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
-      if action == Action.OPEN_STOMATA:
-        self.stomata = True
-      if action == Action.CLOSE_STOMATA:
-        self.stomata = False
-      message = {
-        "type": "simulate",
-        "message": {
-          "delta_t": 6 * 60 * 10,
-          "growth_percentages": {
-            "leaf_percent": 100 if action == Action.GROW_LEAVES else 0,
-            "stem_percent": 100 if action == Action.GROW_STEM else 0,
-            "root_percent": 100 if action == Action.GROW_ROOTS else 0,
-            "seed_percent": 0,
-            "starch_percent": 100 if action not in [Action.GROW_LEAVES, Action.GROW_STEM, Action.GROW_ROOTS] else -100, # make starch when manipulating stomata or new roots
-            "stomata": self.stomata,
-          },
-          "shop_actions":{
-            "buy_watering_can": None,
-            "buy_nitrate": None,
-            "buy_leaf": 1 if action == Action.BUY_LEAF else None,
-            "buy_branch": 1 if action == Action.BUY_STEM else None,
-            "buy_root": {'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
-            "buy_seed": 1 if action == Action.BUY_SEED else None
-          }
-        }
-      }
       try:
         await websocket.send(json.dumps(message))
         response = await websocket.recv()
         res = json.loads(response)
-
         terminated = not res["running"]
-        root_grid = np.array(res["plant"]["root"]["root_grid"])
-        nitrate_grid = np.array(res["environment"]["nitrate_grid"])
-        water_grid = np.array(res["environment"]["water_grid"])
-
-        biomasses = self.get_biomasses(res)
-
-        res["environment"]["accessible_water"] = (root_grid * water_grid).sum()
-        res["environment"]["accessible_nitrate"] = (root_grid * nitrate_grid).sum()
-
-        n_organs = self.get_n_organs(res)
-
-        observation = {
-            # Environment
-            "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
-            "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
-            "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
-            "accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
-            "accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
-            "green_thumbs": np.array([res["green_thumbs"]]).astype(np.float32),
-
-            # Plant
-            "biomasses": np.array([
-              biomasses.leaf,
-              biomasses.stem,
-              biomasses.root,
-              biomasses.seed,
-              ]).astype(np.float32),
-            "n_organs": np.array(n_organs).astype(np.float32),
-            "open_spots": np.array([res["plant"]["open_spots"]]).astype(np.float32),
-            "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
-            "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
-            "stomata_state": np.array([self.stomata])
-          }
-        self.last_observation = observation
-
-        reward = self.calc_reward(biomasses)
-        self.write_log_row(res, message["message"], biomasses, n_organs, action, reward)
       except websockets.exceptions.ConnectionClosedError:
         print("SERVER CRASHED")
-        # @TODO This is not optimal because it pretends that what the actor did had no influence at all.
-        observation = self.last_observation
-        reward = 0.0
+        res = None
         truncated = True
+    return(res, terminated, truncated)
 
-      return(observation, reward, terminated, truncated, {})
+  @staticmethod
+  def build_observation(res, biomasses, n_organs, stomata):
+    root_grid = np.array(res["plant"]["root"]["root_grid"])
+    nitrate_grid = np.array(res["environment"]["nitrate_grid"])
+    water_grid = np.array(res["environment"]["water_grid"])
+
+    res["environment"]["accessible_water"] = (root_grid * water_grid).sum()
+    res["environment"]["accessible_nitrate"] = (root_grid * nitrate_grid).sum()
+
+    observation = {
+        # Environment
+        "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
+        "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
+        "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
+        "accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
+        "accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
+        "green_thumbs": np.array([res["green_thumbs"]]).astype(np.float32),
+
+        # Plant
+        "biomasses": np.array([
+          biomasses.leaf,
+          biomasses.stem,
+          biomasses.root,
+          biomasses.seed,
+          ]).astype(np.float32),
+        "n_organs": np.array(n_organs).astype(np.float32),
+        "open_spots": np.array([res["plant"]["open_spots"]]).astype(np.float32),
+        "starch_pool": np.array([res["plant"]["starch_pool"]]).astype(np.float32),
+        "max_starch_pool": np.array([res["plant"]["max_starch_pool"]]).astype(np.float32),
+        "stomata_state": np.array([stomata])
+      }
+    return(observation)
+
+  def step(self, a):
+    action = Action(a)
+    print("step. " + action.name)
+    if action == Action.OPEN_STOMATA:
+      self.stomata = True
+    if action == Action.CLOSE_STOMATA:
+      self.stomata = False
+    message = {
+      "type": "simulate",
+      "message": {
+        "delta_t": 6 * 60 * 10,
+        "growth_percentages": {
+          "leaf_percent": 100 if action == Action.GROW_LEAVES else 0,
+          "stem_percent": 100 if action == Action.GROW_STEM else 0,
+          "root_percent": 100 if action == Action.GROW_ROOTS else 0,
+          "seed_percent": 0,
+          "starch_percent": 100 if action not in [Action.GROW_LEAVES, Action.GROW_STEM, Action.GROW_ROOTS] else -100, # make starch when manipulating stomata or new roots
+          "stomata": self.stomata,
+        },
+        "shop_actions":{
+          "buy_watering_can": None,
+          "buy_nitrate": None,
+          "buy_leaf": 1 if action == Action.BUY_LEAF else None,
+          "buy_branch": 1 if action == Action.BUY_STEM else None,
+          "buy_root": {'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
+          "buy_seed": 1 if action == Action.BUY_SEED else None
+        }
+      }
+    }
+
+    res, terminated, truncated = asyncio.run(self.execute_step(message))
+    if truncated:
+      observation = self.last_observation # @TODO This is not optimal because it pretends that what the actor did had no influence at all.
+      reward = 0.0
+    else:
+      biomasses = self.get_biomasses(res)
+      n_organs = self.get_n_organs(res)
+      observation = self.build_observation(res, biomasses, n_organs, self.stomata)
+      self.last_observation = observation
+
+      reward = self.calc_reward(biomasses)
+      self.write_log_row(res, message["message"], biomasses, n_organs, action, reward)
+
+    return(observation, reward, terminated, truncated, {})
 
   def calc_reward(self, biomasses):
     current_score = biomasses.seed + (biomasses.leaf + biomasses.stem + biomasses.root) * 0.01
