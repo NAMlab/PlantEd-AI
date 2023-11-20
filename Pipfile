@@ -16,6 +16,8 @@ planted-server = {file = "PlantEd", editable = true}
 torch = "*"
 gymnasium = "*"
 stable-baselines3 = "*"
+optuna = "*"
+optuna-dashboard = "*"
 
 [dev-packages]
 
