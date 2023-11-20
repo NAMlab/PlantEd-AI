@@ -196,6 +196,23 @@ class PlantEdEnv(gym.Env):
       }
     return(observation)
 
+  def custom_step(self, message):
+    print("step. " + "CUSTOM")
+    res, terminated, truncated = asyncio.run(self.execute_step(message))
+    if truncated:
+      observation = self.last_observation # @TODO This is not optimal because it pretends that what the actor did had no influence at all.
+      reward = 0.0
+    else:
+      biomasses = self.get_biomasses(res)
+      n_organs = self.get_n_organs(res)
+      observation = self.build_observation(res, biomasses, n_organs, self.stomata)
+      self.last_observation = observation
+
+      reward = self.calc_reward(biomasses, "CUSTOM")
+      self.write_log_row(res, message["message"], biomasses, n_organs, "CUSTOM", reward)
+
+    return(observation, reward, terminated, truncated, {})
+
   def step(self, a):
     action = Action(a)
     print("step. " + action.name)
@@ -236,15 +253,18 @@ class PlantEdEnv(gym.Env):
       observation = self.build_observation(res, biomasses, n_organs, self.stomata)
       self.last_observation = observation
 
-      reward = self.calc_reward(biomasses)
-      self.write_log_row(res, message["message"], biomasses, n_organs, action, reward)
+      reward = self.calc_reward(biomasses, action)
+      self.write_log_row(res, message["message"], biomasses, n_organs, action.name, reward)
 
     return(observation, reward, terminated, truncated, {})
 
-  def calc_reward(self, biomasses):
+  def calc_reward(self, biomasses, action):
     current_score = biomasses.seed + (biomasses.leaf + biomasses.stem + biomasses.root) * 0.01
     reward = 0 if self.last_step_score == -1 else current_score - self.last_step_score
     self.last_step_score = current_score
+    # Punish opening and closing of stomata as well as buying organs to push AI to use "produce starch" if it wants to do that
+    if action in [Action.OPEN_STOMATA, Action.CLOSE_STOMATA, Action.BUY_LEAF, Action.BUY_STEM, Action.BUY_ROOT, Action.BUY_SEED]:
+      reward = reward * 0.9 - 1e-4
     return(reward)
 
   def write_log_row(self, res, game_state, biomasses, n_organs, action, reward):
@@ -279,7 +299,7 @@ class PlantEdEnv(gym.Env):
       res["green_thumbs"],
       res["plant"]["open_spots"],
 
-      action.name,
+      action,
       reward
       ])
 

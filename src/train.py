@@ -6,6 +6,7 @@ from stable_baselines3 import A2C, PPO
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.env_util import make_vec_env
+import torch as th
 
 from planted_env import PlantEdEnv
 
@@ -39,7 +40,12 @@ def make_env():
 
 envs = DummyVecEnv([make_env()])
 
-model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2)
+model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, policy_kwargs = dict(
+    activation_fn=th.nn.SELU,
+    net_arch=dict(
+      pi=[32,16],
+      vf=[32,16])
+  ))
 
 model.learn(150000, log_interval=10)
 envs.close()
