@@ -97,6 +97,7 @@ class PlantEdEnv(gym.Env):
 
     self.running = True
     self.last_step_score = -1
+    self.total_rewards = 0
     self.stomata = True
     self.last_observation = None
 
@@ -209,6 +210,7 @@ class PlantEdEnv(gym.Env):
       self.last_observation = observation
 
       reward = self.calc_reward(biomasses, "CUSTOM")
+      self.total_rewards += reward
       self.write_log_row(res, message["message"], biomasses, n_organs, "CUSTOM", reward)
 
     return(observation, reward, terminated, truncated, {})
@@ -254,6 +256,7 @@ class PlantEdEnv(gym.Env):
       self.last_observation = observation
 
       reward = self.calc_reward(biomasses, action)
+      self.total_rewards += reward
       self.write_log_row(res, message["message"], biomasses, n_organs, action.name, reward)
 
     return(observation, reward, terminated, truncated, {})
