@@ -1,4 +1,5 @@
 import os
+import sys
 import math
 
 import gymnasium as gym
@@ -14,7 +15,9 @@ from planted_env import PlantEdEnv
 
 import optuna
 
-def make_env():
+port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
+
+def make_env(episode_name, reset_callback):
   """
   Utility function for multiprocessed env.
 
@@ -24,36 +27,43 @@ def make_env():
   :param rank: index of the subprocess
   """
   def _init():
-    env = PlantEdEnv("World1")
+    env = PlantEdEnv(episode_name, port)
     env.reset()
+    env.reset_callback = reset_callback
     return env
   return _init
-
-# Taken and adapted from https://stackoverflow.com/questions/77043606/stop-stable-baselines-learn-method-when-execution-is-terminated
-class StopOnSuccessCallback(BaseCallback):
-    def __init__(self, episode_rewards, trial, verbose=0):
-        self.episode_rewards = episode_rewards
-        self.latest_reward_state = 0
-        self.episode_number = 1
-        self.trial = trial
-        super(StopOnSuccessCallback, self).__init__(verbose)
-
-    def _on_step(self):
-        env =  self.model.env.envs[0]
-        if env.total_rewards == 0: # this indicates that a new environment has been started
-            self.episode_rewards.append(self.latest_reward_state) # the total rewards from the last step (this misses the last step but fine)
-            self.trial.report(self.latest_reward_state, self.episode_number)
-            self.episode_number += 1
-        else: # update the total rewards so we can save it when the environment closes
-            self.latest_reward_state = env.total_rewards
-        return True
-
 
 study = optuna.create_study(study_name="Single Environment Study", storage="sqlite:///optuna-studies.db", load_if_exists=True, direction="maximize")
 
 def objective(trial):
 
-    envs = DummyVecEnv([make_env()])
+    episode_rewards = []
+    episode_number = 1
+
+    # This is called before the env is reset so that we have access to the total rewards
+    # at the end of each episode.
+    def reset_callback(env):
+      nonlocal episode_rewards
+      nonlocal episode_number
+      episode_rewards.append(env.total_rewards)
+      trial.report(env.total_rewards, episode_number)
+      episode_number += 1
+      print(f"Episode {episode_number} finished with total reward of {env.total_rewards}")
+
+    envs = DummyVecEnv([make_env(f"Trial_{trial.number}", reset_callback)])
+    envs = VecNormalize(envs, norm_obs_keys = [
+      "temperature",
+      "sun_intensity",
+      "humidity",
+      "accessible_water",
+      "accessible_nitrate",
+      "green_thumbs",
+      # Plant
+      "biomasses", #leaf, stem, root, seed
+      "n_organs", #leaf, stem, root, seed
+      "open_spots",
+      "starch_pool",
+      "max_starch_pool"])
     batch_size = trial.suggest_int("batch_size", 2, 96)
     n_steps = 2 * batch_size
 
@@ -62,6 +72,9 @@ def objective(trial):
 
     learning_rate = trial.suggest_float("learning_rate", 5e-6, 0.003)
     clip_range = trial.suggest_float("clip_range", 0.1, 0.3)
+
+    ent_coef = trial.suggest_float("ent_coef", 0.001, 0.1)
+    gamma = trial.suggest_float("gamma", 0.8, 0.9997)
 
     activation_fns = dict(
       Tanh = th.nn.Tanh,
@@ -73,16 +86,14 @@ def objective(trial):
     activation_fn = activation_fns[trial.suggest_categorical("activation_fn", list(activation_fns.keys()))]
 
     model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = n_steps, batch_size = batch_size, learning_rate = learning_rate,
-      clip_range = clip_range,
+      clip_range = clip_range, ent_coef = ent_coef, gamma = gamma,
       policy_kwargs = dict(
         activation_fn=activation_fn,
         net_arch=dict(
           pi=[layer_1_size, layer_2_size],
           vf=[layer_1_size, layer_2_size])
       ))
-    episode_rewards = []
-    callback = StopOnSuccessCallback(episode_rewards, trial)
-    model.learn(480000, log_interval=10, callback=callback)
+    model.learn(18060, log_interval=10)
     print(episode_rewards)
     envs.close()
     return sum(episode_rewards) / len(episode_rewards)

@@ -48,8 +48,9 @@ class PlantEdEnv(gym.Env):
     self.running = False
     self.game_counter = 0 # add 1 at each reset --> to save all the logs
     # Remove previous game logs
-    for f in glob.glob('game_logs/*.csv'):
-      os.remove(f)
+    # for f in glob.glob('game_logs/*.csv'):
+    #   os.remove(f)
+    self.reset_callback = None
 
     # See Action enum above for action space.
     self.action_space = spaces.Discrete(len(Action))
@@ -83,6 +84,9 @@ class PlantEdEnv(gym.Env):
     self.running = False
 
   def reset(self, seed=None, options=None):
+    if self.reset_callback:
+      self.reset_callback(self)
+    print("RESET CALLED")
     if self.running:
       self.close()
 
@@ -162,6 +166,7 @@ class PlantEdEnv(gym.Env):
         print("SERVER CRASHED")
         res = None
         truncated = True
+
     return(res, terminated, truncated)
 
   @staticmethod
