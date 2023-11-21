@@ -40,9 +40,10 @@ Action = Enum('Action', [
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
 
-  def __init__(self, instance_name="PlantEd_instance", port=8765):
+  def __init__(self, instance_name="PlantEd_instance", port=8765, level='spring_high_nitrate'):
     self.port = port
     self.instance_name = instance_name
+    self.level_name = level
     self.csv_file = None
     self.server_process = None
     self.running = False
@@ -97,7 +98,7 @@ class PlantEdEnv(gym.Env):
     self.server_process.start()
     print("Server process started, waiting 10 sec...")
     time.sleep(10)
-    asyncio.run(self.load_level())
+    asyncio.run(self.load_level(self.level_name))
 
     self.running = True
     self.last_step_score = -1
@@ -108,13 +109,13 @@ class PlantEdEnv(gym.Env):
     observation, reward, terminated, truncated, info = self.step(2)
     return(observation, info)
 
-  async def load_level(self):
+  async def load_level(self, level_name):
     async with websockets.connect("ws://localhost:" + str(self.port)) as websocket:
       message = {
         "type": "load_level",
         "message": {
           "player_name": "Planted-AI",
-          "level_name": "LEVEL_NAME",
+          "level_name": level_name,
         }
       }
       await websocket.send(json.dumps(message))

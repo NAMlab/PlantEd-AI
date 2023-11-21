@@ -9,6 +9,7 @@ from stable_baselines3.common.env_util import make_vec_env
 import torch as th
 
 from planted_env import PlantEdEnv
+from custom_subproc_vec_env import SubprocVecEnv
 
 env = PlantEdEnv("Environment 1")
 
@@ -23,7 +24,7 @@ print("\n _____ACTION SPACE_____ \n")
 print("The Action Space is: ", a_size)
 print("Action Space Sample", env.action_space.sample()) # Take a random action
 
-def make_env():
+def make_env(level_name, port):
     """
     Utility function for multiprocessed env.
 
@@ -33,23 +34,44 @@ def make_env():
     :param rank: index of the subprocess
     """
     def _init():
-        env = PlantEdEnv("World1")
+        env = PlantEdEnv(f"PPO_{level_name}", port, level_name)
         env.reset()
         return env
     return _init
 
-envs = DummyVecEnv([make_env()])
+if __name__ == "__main__":
+  envs = SubprocVecEnv([
+    make_env('spring_high_nitrate', 8765),
+    make_env('spring_low_nitrate', 8766),
+    make_env('summer_high_nitrate', 8767),
+    make_env('summer_low_nitrate', 8768),
+    make_env('fall_high_nitrate', 8769),
+    make_env('fall_low_nitrate', 8770)
+  ], start_method='fork')
+  envs = VecNormalize(envs, norm_obs_keys = [
+    "temperature",
+    "sun_intensity",
+    "humidity",
+    "accessible_water",
+    "accessible_nitrate",
+    "green_thumbs",
+    # Plant
+    "biomasses", #leaf, stem, root, seed
+    "n_organs", #leaf, stem, root, seed
+    "open_spots",
+    "starch_pool",
+    "max_starch_pool"])
 
-model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, policy_kwargs = dict(
-    activation_fn=th.nn.SELU,
-    net_arch=dict(
-      pi=[32,16],
-      vf=[32,16])
-  ))
+  model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, ent_coef = 0.05, device="cpu", policy_kwargs = dict(
+      activation_fn=th.nn.Tanh,
+      net_arch=dict(
+        pi=[32,16],
+        vf=[32,16])
+    ))
 
-model.learn(150000, log_interval=10)
-envs.close()
+  model.learn(24000, log_interval=10)
+  envs.close()
 
-print(model)
-model.save("model_ppo")
+  print(model)
+  model.save("model_ppo")
 
