@@ -86,17 +86,17 @@ def objective(trial):
     activation_fn = activation_fns[trial.suggest_categorical("activation_fn", list(activation_fns.keys()))]
 
     model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = n_steps, batch_size = batch_size, learning_rate = learning_rate,
-      clip_range = clip_range, ent_coef = ent_coef, gamma = gamma,
+      clip_range = clip_range, ent_coef = ent_coef, gamma = gamma, device="cpu",
       policy_kwargs = dict(
         activation_fn=activation_fn,
         net_arch=dict(
           pi=[layer_1_size, layer_2_size],
           vf=[layer_1_size, layer_2_size])
       ))
-    model.learn(18060, log_interval=10)
+    model.learn(24060, log_interval=10)
     print(episode_rewards)
     envs.close()
     return sum(episode_rewards) / len(episode_rewards)
 
-study.optimize(objective, n_trials=50)
+study.optimize(objective, n_trials=50, gc_after_trial=True)
 print(f"Best value: {study.best_value} (params: {study.best_params})")
