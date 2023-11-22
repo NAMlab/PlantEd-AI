@@ -279,12 +279,19 @@ class PlantEdEnv(gym.Env):
     current_score = biomasses.leaf + biomasses.stem + biomasses.root
     reward = 0 if self.last_step_score == -1 else current_score - self.last_step_score
     self.last_step_score = current_score
-    # Punish opening and closing of stomata as well as buying organs to push AI to use "produce starch" if it wants to do that
-    if action in [Action.OPEN_STOMATA, Action.CLOSE_STOMATA, Action.BUY_LEAF, Action.BUY_STEM, Action.BUY_ROOT, Action.BUY_SEED,
-                  Action.ADD_WATER, Action.ADD_NITRATE]:
+    # Penalties for doing nonsense:
+    if action == Action.OPEN_STOMATA and self.last_observation["stomata_state"][0]:
+      # Opening stomata that are already open
+      reward = reward - current_score * 0.02
+    elif action == Action.CLOSE_STOMATA and not self.last_observation["stomata_state"][0]:
+      # Closing stomata that are already closed
+      reward = reward - current_score * 0.02
+    elif action in [Action.BUY_STEM, Action.BUY_ROOT, Action.BUY_SEED, Action.ADD_WATER, Action.ADD_NITRATE]:
+      # Doing a disabled action
       reward = reward - current_score * 0.005
-      if action in [Action.BUY_LEAF, Action.BUY_STEM, Action.BUY_ROOT, Action.BUY_SEED] and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] == 0):
-        reward = reward - current_score * 0.1
+    elif action == Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] == 0):
+      # Buying a leaf without spots or green thumbs for it
+      reward = reward - current_score * 0.1
     return(reward)
 
   def write_log_row(self, res, game_state, biomasses, n_organs, action, reward):
