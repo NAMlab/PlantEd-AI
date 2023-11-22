@@ -34,44 +34,47 @@ def make_env(level_name, port):
     :param rank: index of the subprocess
     """
     def _init():
-        env = PlantEdEnv(f"PPO_{level_name}", port, level_name)
+        env = PlantEdEnv(f"Level2_try1_{level_name}", port, level_name)
         env.reset()
         return env
     return _init
 
 if __name__ == "__main__":
   envs = SubprocVecEnv([
-    make_env('spring_high_nitrate', 8765),
-    make_env('spring_low_nitrate', 8766),
-    make_env('summer_high_nitrate', 8767),
-    make_env('summer_low_nitrate', 8768),
-    make_env('fall_high_nitrate', 8769),
-    make_env('fall_low_nitrate', 8770)
+    make_env('spring_high_nitrate', 8771),
+    make_env('spring_low_nitrate', 8772),
+    make_env('summer_high_nitrate', 8773),
+    make_env('summer_low_nitrate', 8774),
+    make_env('fall_high_nitrate', 8775),
+    make_env('fall_low_nitrate', 8776)
   ], start_method='fork')
-  envs = VecNormalize(envs, norm_obs_keys = [
-    "temperature",
-    "sun_intensity",
-    "humidity",
-    "accessible_water",
-    "accessible_nitrate",
-    "green_thumbs",
-    # Plant
-    "biomasses", #leaf, stem, root, seed
-    "n_organs", #leaf, stem, root, seed
-    "open_spots",
-    "starch_pool",
-    "max_starch_pool"])
+  #envs = VecNormalize(envs, norm_obs_keys = [
+  #  "temperature",
+  #  "sun_intensity",
+  #  "humidity",
+  #  "accessible_water",
+  #  "accessible_nitrate",
+  #  "green_thumbs",
+  #  # Plant
+  #  "biomasses", #leaf, stem, root, seed
+  #  "n_organs", #leaf, stem, root, seed
+  #  "open_spots",
+  #  "starch_pool",
+  #  "max_starch_pool"])
+  envs = VecNormalize.load("models/Level1_try1_vec_normalize.pkl", envs)
 
-  model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, ent_coef = 0.05, device="cpu", policy_kwargs = dict(
-      activation_fn=th.nn.Tanh,
-      net_arch=dict(
-        pi=[32,16],
-        vf=[32,16])
-    ))
+  #model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, ent_coef = 0.05, device="cpu", policy_kwargs = dict(
+  #    activation_fn=th.nn.Tanh,
+  #    net_arch=dict(
+  #      pi=[32,16],
+  #      vf=[32,16])
+  #  ))
+  model = PPO.load("models/Level1_try1", env=envs)
 
-  model.learn(24000, log_interval=10)
+  model.learn(20*600*6, log_interval=10)
   envs.close()
 
   print(model)
-  model.save("model_ppo")
+  model.save("models/Level2_try1")
+  envs.save("models/Level2_try1_vec_normalize.pkl")
 

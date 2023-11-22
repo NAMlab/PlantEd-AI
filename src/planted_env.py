@@ -221,11 +221,11 @@ class PlantEdEnv(gym.Env):
       biomasses = self.get_biomasses(res)
       n_organs = self.get_n_organs(res)
       observation = self.build_observation(res, biomasses, n_organs, self.stomata)
-      self.last_observation = observation
 
       reward = self.calc_reward(biomasses, "CUSTOM")
       self.total_rewards += reward
       self.write_log_row(res, message["message"], biomasses, n_organs, "CUSTOM", reward)
+      self.last_observation = observation
 
     return(observation, reward, terminated, truncated, {})
 
@@ -249,12 +249,12 @@ class PlantEdEnv(gym.Env):
           "stomata": self.stomata,
         },
         "shop_actions":{
-          "buy_watering_can": dict(cells=bell_curve) if action == Action.ADD_WATER else None,
-          "buy_nitrate": dict(cells=[list(b) for b in zip(range(0, 20), [0]*20, bell_curve)]) if action == Action.ADD_NITRATE else None,
+          "buy_watering_can": None, #dict(cells=bell_curve) if action == Action.ADD_WATER else None,
+          "buy_nitrate": None, #dict(cells=[list(b) for b in zip(range(0, 20), [0]*20, bell_curve)]) if action == Action.ADD_NITRATE else None,
           "buy_leaf": 1 if action == Action.BUY_LEAF else None,
-          "buy_branch": 1 if action == Action.BUY_STEM else None,
-          "buy_root": {'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
-          "buy_seed": 1 if action == Action.BUY_SEED else None
+          "buy_branch": None, #1 if action == Action.BUY_STEM else None,
+          "buy_root": None, #{'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
+          "buy_seed": None #1 if action == Action.BUY_SEED else None
         }
       }
     }
@@ -267,21 +267,24 @@ class PlantEdEnv(gym.Env):
       biomasses = self.get_biomasses(res)
       n_organs = self.get_n_organs(res)
       observation = self.build_observation(res, biomasses, n_organs, self.stomata)
-      self.last_observation = observation
 
       reward = self.calc_reward(biomasses, action)
       self.total_rewards += reward
       self.write_log_row(res, message["message"], biomasses, n_organs, action.name, reward)
+      self.last_observation = observation
 
     return(observation, reward, terminated, truncated, {})
 
   def calc_reward(self, biomasses, action):
-    current_score = biomasses.seed + (biomasses.leaf + biomasses.stem + biomasses.root) * 0.01
+    current_score = biomasses.leaf + biomasses.stem + biomasses.root
     reward = 0 if self.last_step_score == -1 else current_score - self.last_step_score
     self.last_step_score = current_score
     # Punish opening and closing of stomata as well as buying organs to push AI to use "produce starch" if it wants to do that
-    if action in [Action.OPEN_STOMATA, Action.CLOSE_STOMATA, Action.BUY_LEAF, Action.BUY_STEM, Action.BUY_ROOT, Action.BUY_SEED]:
-      reward = reward * 0.9 - 1e-4
+    if action in [Action.OPEN_STOMATA, Action.CLOSE_STOMATA, Action.BUY_LEAF, Action.BUY_STEM, Action.BUY_ROOT, Action.BUY_SEED,
+                  Action.ADD_WATER, Action.ADD_NITRATE]:
+      reward = reward - current_score * 0.005
+      if action in [Action.BUY_LEAF, Action.BUY_STEM, Action.BUY_ROOT, Action.BUY_SEED] and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] == 0):
+        reward = reward - current_score * 0.1
     return(reward)
 
   def write_log_row(self, res, game_state, biomasses, n_organs, action, reward):
