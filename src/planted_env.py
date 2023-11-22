@@ -31,11 +31,19 @@ Action = Enum('Action', [
   'BUY_LEAF',
   'BUY_STEM',
   'BUY_ROOT',
-  'BUY_SEED'
+  'BUY_SEED',
+  'ADD_WATER',
+  'ADD_NITRATE'
   ], start=0) # start at 0 because the gym action space starts at 0
-# @TODO add these next:
-# 10 - watering can
-# 11 - add fertilizer
+
+# A 20-element list which follows a bell curve centered on the 11th element and SD of 3.5.
+# We are using it for adding water or nitrate so that most of the resource is added close to the
+# plant but a little bit also on the edges.
+bell_curve = [0.00192402842149435, 0.00417841224340915, 0.00836293029404593, 0.0154259904323394, 0.0262237639897452, 0.0410851036425338, 0.0593227308900573, 0.0789414815812859, 0.0968136959305107, 0.109424788555489, 0.113983508686124, 0.109424788555489, 0.0968136959305107, 0.0789414815812859, 0.0593227308900573, 0.0410851036425338, 0.0262237639897452, 0.0154259904323394, 0.00836293029404593, 0.00417841224340915]
+# PlantEd expects the sum of the list to be exactly 1.0 and that is not the case since these numbers
+# are copied in. So we're dividing by the current sum which scales the numbers so that their sum becomes 1.
+bell_curve = np.array(bell_curve)
+bell_curve = list(bell_curve / bell_curve.sum())
 
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
@@ -241,8 +249,8 @@ class PlantEdEnv(gym.Env):
           "stomata": self.stomata,
         },
         "shop_actions":{
-          "buy_watering_can": None,
-          "buy_nitrate": None,
+          "buy_watering_can": dict(cells=bell_curve) if action == Action.ADD_WATER else None,
+          "buy_nitrate": dict(cells=[list(b) for b in zip(range(0, 20), [0]*20, bell_curve)]) if action == Action.ADD_NITRATE else None,
           "buy_leaf": 1 if action == Action.BUY_LEAF else None,
           "buy_branch": 1 if action == Action.BUY_STEM else None,
           "buy_root": {'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
