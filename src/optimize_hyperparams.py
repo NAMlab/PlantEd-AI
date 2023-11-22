@@ -17,26 +17,19 @@ import optuna
 
 port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
 
-def make_env(episode_name, reset_callback):
-  """
-  Utility function for multiprocessed env.
-
-  :param env_id: the environment ID
-  :param num_env: the number of environments you wish to have in subprocesses
-  :param seed: the inital seed for RNG
-  :param rank: index of the subprocess
-  """
+def make_env(level_name, port, episode_name, reset_callback):
   def _init():
-    env = PlantEdEnv(episode_name, port)
+    env = PlantEdEnv(episode_name + "_" + level_name, port, level_name)
     env.reset()
     env.reset_callback = reset_callback
     return env
   return _init
 
-study = optuna.create_study(study_name="Single Environment Study", storage="sqlite:///optuna-studies.db", load_if_exists=True, direction="maximize")
+study = optuna.create_study(study_name="Level 2 Study", storage="sqlite:///level-studies.db", load_if_exists=True, direction="maximize")
 
 def objective(trial):
 
+    scenario_rewards = []
     episode_rewards = []
     episode_number = 1
 
@@ -44,13 +37,30 @@ def objective(trial):
     # at the end of each episode.
     def reset_callback(env):
       nonlocal episode_rewards
+      nonlocal scenario_rewards
       nonlocal episode_number
-      episode_rewards.append(env.total_rewards)
-      trial.report(env.total_rewards, episode_number)
-      episode_number += 1
-      print(f"Episode {episode_number} finished with total reward of {env.total_rewards}")
+      scenario_rewards.append(env.total_rewards)
+      print(f"Appending Scenario reward {env.total_rewards} for scenario {env.level_name}")
+      if len(scenario_rewards) > 5: #this was the last scenario
+        print("All Scenarios, finished!")
+        episode_mean_reward = sum(scenario_rewards) / len(scenario_rewards)
+        scenario_rewards = []
+        episode_rewards.append(episode_mean_reward)
+        trial.report(episode_mean_reward, episode_number)
+        episode_number += 1
+        print(f"Episode {episode_number} finished with total reward of {episode_mean_reward}")
 
-    envs = DummyVecEnv([make_env(f"Trial_{trial.number}", reset_callback)])
+    # Having multiple in parallel could be messy because I wouldn't be sure all their scores
+    # can return to this process in a clean way to be reported to Optuna. So instead we're doing
+    # one environment at a time but simply start more trials in parallel.
+    envs = DummyVecEnv([
+      make_env('spring_high_nitrate', port, f"Trial_{trial.number}", reset_callback),
+      make_env('spring_low_nitrate', port+1, f"Trial_{trial.number}", reset_callback),
+      make_env('summer_high_nitrate', port+2, f"Trial_{trial.number}", reset_callback),
+      make_env('summer_low_nitrate', port+3, f"Trial_{trial.number}", reset_callback),
+      make_env('fall_high_nitrate', port+4, f"Trial_{trial.number}", reset_callback),
+      make_env('fall_low_nitrate', port+5, f"Trial_{trial.number}", reset_callback)
+    ])
     envs = VecNormalize(envs, norm_obs_keys = [
       "temperature",
       "sun_intensity",
@@ -93,7 +103,7 @@ def objective(trial):
           pi=[layer_1_size, layer_2_size],
           vf=[layer_1_size, layer_2_size])
       ))
-    model.learn(24060, log_interval=10)
+    model.learn(25*610*6, log_interval=10)
     print(episode_rewards)
     envs.close()
     return sum(episode_rewards) / len(episode_rewards)
