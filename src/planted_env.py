@@ -255,7 +255,7 @@ class PlantEdEnv(gym.Env):
           "buy_leaf": 1 if action == Action.BUY_LEAF else None,
           "buy_branch": 1 if action == Action.BUY_STEM else None,
           "buy_root": {'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
-          "buy_seed": None #1 if action == Action.BUY_SEED else None
+          "buy_seed": 1 if action == Action.BUY_SEED else None
         }
       }
     }
@@ -277,7 +277,7 @@ class PlantEdEnv(gym.Env):
     return(observation, reward, terminated, truncated, {})
 
   def calc_reward(self, biomasses, action):
-    current_score = biomasses.leaf + biomasses.stem + biomasses.root
+    current_score = biomasses.leaf + biomasses.stem + biomasses.root + 2*biomasses.seed
     reward = 0 if self.last_step_score == -1 else current_score - self.last_step_score
     self.last_step_score = current_score
 
@@ -288,11 +288,13 @@ class PlantEdEnv(gym.Env):
     elif action == Action.CLOSE_STOMATA and not self.last_observation["stomata_state"][0]:
       # Closing stomata that are already closed
       reward = reward - current_score * 0.02
-    elif action in [Action.BUY_SEED, Action.ADD_WATER, Action.ADD_NITRATE]:
+    elif action in [Action.ADD_WATER, Action.ADD_NITRATE]:
       # Doing a disabled action
       reward = reward - current_score * 0.005
     elif action == Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < LEAF_COST):
-      # Buying a leaf without spots or green thumbs for it
+      reward = reward - current_score * 0.1
+    elif action == Action.BUY_SEED and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < FLOWER_COST):
+      # Buying a seed without spots or green thumbs for it
       reward = reward - current_score * 0.1
     elif action == Action.BUY_STEM and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < BRANCH_COST):
       # Buying a stem without spots or green thumbs for it
