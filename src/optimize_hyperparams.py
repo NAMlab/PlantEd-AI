@@ -1,6 +1,7 @@
 import os
 import sys
 import math
+import statistics
 
 import gymnasium as gym
 
@@ -106,7 +107,7 @@ def objective(trial):
     model.learn(25*610*6, log_interval=10)
     print(episode_rewards)
     envs.close()
-    return sum(episode_rewards) / len(episode_rewards)
+    return statistics.median(episode_rewards)
 
 study.optimize(objective, n_trials=50, gc_after_trial=True)
 print(f"Best value: {study.best_value} (params: {study.best_params})")

@@ -252,8 +252,8 @@ class PlantEdEnv(gym.Env):
           "buy_watering_can": None, #dict(cells=bell_curve) if action == Action.ADD_WATER else None,
           "buy_nitrate": None, #dict(cells=[list(b) for b in zip(range(0, 20), [0]*20, bell_curve)]) if action == Action.ADD_NITRATE else None,
           "buy_leaf": 1 if action == Action.BUY_LEAF else None,
-          "buy_branch": None, #1 if action == Action.BUY_STEM else None,
-          "buy_root": None, #{'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
+          "buy_branch": 1 if action == Action.BUY_STEM else None,
+          "buy_root": {'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
           "buy_seed": None #1 if action == Action.BUY_SEED else None
         }
       }
@@ -286,11 +286,14 @@ class PlantEdEnv(gym.Env):
     elif action == Action.CLOSE_STOMATA and not self.last_observation["stomata_state"][0]:
       # Closing stomata that are already closed
       reward = reward - current_score * 0.02
-    elif action in [Action.BUY_STEM, Action.BUY_ROOT, Action.BUY_SEED, Action.ADD_WATER, Action.ADD_NITRATE]:
+    elif action in [Action.BUY_SEED, Action.ADD_WATER, Action.ADD_NITRATE]:
       # Doing a disabled action
       reward = reward - current_score * 0.005
-    elif action == Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] == 0):
-      # Buying a leaf without spots or green thumbs for it
+    elif action in [Action.BUY_LEAF, Action.BUY_STEM] and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] == 0):
+      # Buying a leaf or stem without spots or green thumbs for it
+      reward = reward - current_score * 0.1
+    elif action == Action.BUY_ROOT and self.last_observation["green_thumbs"][0] == 0:
+      # Buying a root without green thumbs for it
       reward = reward - current_score * 0.1
     return(reward)
 
