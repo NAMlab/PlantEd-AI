@@ -17,6 +17,7 @@ import gymnasium as gym
 from gymnasium import spaces
 
 from PlantEd.server import server
+from PlantEd.constants import ROOT_COST, BRANCH_COST, LEAF_COST, FLOWER_COST, WATERING_CAN_COST, NITRATE_COST
 
 Biomass = collections.namedtuple("Biomass", "leaf stem root seed")
 
@@ -279,6 +280,7 @@ class PlantEdEnv(gym.Env):
     current_score = biomasses.leaf + biomasses.stem + biomasses.root
     reward = 0 if self.last_step_score == -1 else current_score - self.last_step_score
     self.last_step_score = current_score
+
     # Penalties for doing nonsense:
     if action == Action.OPEN_STOMATA and self.last_observation["stomata_state"][0]:
       # Opening stomata that are already open
@@ -289,10 +291,13 @@ class PlantEdEnv(gym.Env):
     elif action in [Action.BUY_SEED, Action.ADD_WATER, Action.ADD_NITRATE]:
       # Doing a disabled action
       reward = reward - current_score * 0.005
-    elif action in [Action.BUY_LEAF, Action.BUY_STEM] and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] == 0):
-      # Buying a leaf or stem without spots or green thumbs for it
+    elif action == Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < LEAF_COST):
+      # Buying a leaf without spots or green thumbs for it
       reward = reward - current_score * 0.1
-    elif action == Action.BUY_ROOT and self.last_observation["green_thumbs"][0] == 0:
+    elif action == Action.BUY_STEM and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < BRANCH_COST):
+      # Buying a stem without spots or green thumbs for it
+      reward = reward - current_score * 0.1
+    elif action == Action.BUY_ROOT and self.last_observation["green_thumbs"][0] < ROOT_COST:
       # Buying a root without green thumbs for it
       reward = reward - current_score * 0.1
     return(reward)
