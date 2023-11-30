@@ -34,7 +34,7 @@ def make_env(level_name, port):
     :param rank: index of the subprocess
     """
     def _init():
-        env = PlantEdEnv(f"Level4_try1_{level_name}", port, level_name)
+        env = PlantEdEnv(f"Level4_non_stationary_{level_name}", port, level_name)
         env.reset()
         return env
     return _init
@@ -48,33 +48,35 @@ if __name__ == "__main__":
     make_env('fall_high_nitrate', 8775),
     make_env('fall_low_nitrate', 8776)
   ], start_method='fork')
-  #envs = VecNormalize(envs, norm_obs_keys = [
-  #  "temperature",
-  #  "sun_intensity",
-  #  "humidity",
-  #  "accessible_water",
-  #  "accessible_nitrate",
-  #  "green_thumbs",
-  #  # Plant
-  #  "biomasses", #leaf, stem, root, seed
-  #  "n_organs", #leaf, stem, root, seed
-  #  "open_spots",
-  #  "starch_pool",
-  #  "max_starch_pool"])
-  envs = VecNormalize.load("models/Level3_try1_vec_normalize.pkl", envs)
+  envs = VecNormalize(envs, norm_obs_keys = [
+    "temperature",
+    "sun_intensity",
+    "humidity",
+    "accessible_water",
+    "accessible_nitrate",
+    "green_thumbs",
+    # Plant
+    "biomasses", #leaf, stem, root, seed
+    "n_organs", #leaf, stem, root, seed
+    "open_spots",
+    "starch_pool",
+    "max_starch_pool"])
+  #envs = VecNormalize.load("models/Level3_try1_vec_normalize.pkl", envs)
 
-  #model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, ent_coef = 0.05, device="cpu", policy_kwargs = dict(
-  #    activation_fn=th.nn.Tanh,
-  #    net_arch=dict(
-  #      pi=[32,16],
-  #      vf=[32,16])
-  #  ))
-  model = PPO.load("models/Level3_try1", env=envs)
+  model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, ent_coef = 0.05, device="cpu", policy_kwargs = dict(
+    activation_fn=th.nn.Tanh,
+    net_arch=dict(
+      pi=[32,16],
+      vf=[32,16]),
+    optimizer_kwargs = dict(
+      betas = (0.99, 0.99))
+  ))
+  #model = PPO.load("models/Level3_try1", env=envs)
 
   model.learn(50*600*6, log_interval=10)
   envs.close()
 
   print(model)
-  model.save("models/Level4_try1")
-  envs.save("models/Level4_try1_vec_normalize.pkl")
+  model.save("models/Level4_non_stationary")
+  envs.save("models/Level4_non_stationary_vec_normalize.pkl")
 

@@ -191,7 +191,7 @@ class PlantEdEnv(gym.Env):
     observation = {
         # Environment
         "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
-        "sun_intensity": np.array([res["environment"]["sun_intensity"]]).astype(np.float32),
+        "sun_intensity": np.array([max(0, res["environment"]["sun_intensity"])]).astype(np.float32), # according to Daniel <0 = 0 for the plant
         "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
         "accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
         "accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
