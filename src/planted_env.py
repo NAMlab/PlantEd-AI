@@ -32,9 +32,9 @@ Action = Enum('Action', [
   'BUY_LEAF',
   'BUY_STEM',
   'BUY_ROOT',
-  'BUY_SEED',
-  'ADD_WATER',
-  'ADD_NITRATE'
+  'BUY_SEED' #,
+#  'ADD_WATER',
+#  'ADD_NITRATE'
   ], start=0) # start at 0 because the gym action space starts at 0
 
 # A 20-element list which follows a bell curve centered on the 11th element and SD of 3.5.
@@ -288,9 +288,9 @@ class PlantEdEnv(gym.Env):
     elif action == Action.CLOSE_STOMATA and not self.last_observation["stomata_state"][0]:
       # Closing stomata that are already closed
       reward = reward - current_score * 0.02
-    elif action in [Action.ADD_WATER, Action.ADD_NITRATE]:
-      # Doing a disabled action
-      reward = reward - current_score * 0.005
+    # elif action in [Action.ADD_WATER, Action.ADD_NITRATE]:
+    #   # Doing a disabled action
+    #   reward = reward - current_score * 0.005
     elif action == Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < LEAF_COST):
       reward = reward - current_score * 0.1
     elif action == Action.BUY_SEED and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < FLOWER_COST):

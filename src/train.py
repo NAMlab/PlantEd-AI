@@ -34,7 +34,7 @@ def make_env(level_name, port):
     :param rank: index of the subprocess
     """
     def _init():
-        env = PlantEdEnv(f"Level4_non_stationary_{level_name}", port, level_name)
+        env = PlantEdEnv(f"Level4_non-stationary_{level_name}", port, level_name)
         env.reset()
         return env
     return _init
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     "max_starch_pool"])
   #envs = VecNormalize.load("models/Level3_try1_vec_normalize.pkl", envs)
 
-  model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, ent_coef = 0.05, device="cpu", policy_kwargs = dict(
+  model = PPO(policy = "MultiInputPolicy", env = envs, verbose=2, n_steps = 96, batch_size = 48, ent_coef = 0.05, device="cpu", learning_rate=0.0001, policy_kwargs = dict(
     activation_fn=th.nn.Tanh,
     net_arch=dict(
       pi=[32,16],
@@ -73,10 +73,10 @@ if __name__ == "__main__":
   ))
   #model = PPO.load("models/Level3_try1", env=envs)
 
-  model.learn(50*600*6, log_interval=10)
+  model.learn(200*600*6, log_interval=10)
   envs.close()
 
   print(model)
-  model.save("models/Level4_non_stationary")
-  envs.save("models/Level4_non_stationary_vec_normalize.pkl")
+  model.save("models/Level4_non-stationary")
+  envs.save("models/Level4_non-stationary_vec_normalize.pkl")
 

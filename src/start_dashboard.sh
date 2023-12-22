@@ -1,1 +1,1 @@
-optuna-dashboard --host nam-99 sqlite:///optuna-studies.db
+optuna-dashboard --host nam-99 sqlite:///level-studies.db

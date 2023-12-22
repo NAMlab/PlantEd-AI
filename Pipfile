@@ -12,12 +12,12 @@ requests = "*"
 dataclasses-json = "*"
 scipy = "*"
 matplotlib = "*"
-planted-server = {file = "PlantEd", editable = true}
 torch = "*"
 gymnasium = "*"
 stable-baselines3 = "*"
 optuna = "*"
 optuna-dashboard = "*"
+planted = {file = "PlantEd", editable = true}
 
 [dev-packages]
 
