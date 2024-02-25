@@ -125,6 +125,7 @@ class PlantEdEnv(gym.Env):
         "message": {
           "player_name": "Planted-AI",
           "level_name": level_name,
+          "icon_name": "monkey"
         }
       }
       await websocket.send(json.dumps(message))
