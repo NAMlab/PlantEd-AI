@@ -26,7 +26,7 @@ def make_env(level_name, port, episode_name, reset_callback):
     return env
   return _init
 
-study = optuna.create_study(study_name="Level 2 Study", storage="sqlite:///level-studies.db", load_if_exists=True, direction="maximize")
+study = optuna.create_study(study_name="Paperv1 Study", storage="sqlite:///level-studies.db", load_if_exists=True, direction="maximize")
 
 def objective(trial):
 
@@ -86,6 +86,7 @@ def objective(trial):
 
     ent_coef = trial.suggest_float("ent_coef", 0.001, 0.1)
     gamma = trial.suggest_float("gamma", 0.8, 0.9997)
+    betas = trial.suggest_float("betas", .99, .999)
 
     activation_fns = dict(
       Tanh = th.nn.Tanh,
@@ -102,12 +103,26 @@ def objective(trial):
         activation_fn=activation_fn,
         net_arch=dict(
           pi=[layer_1_size, layer_2_size],
-          vf=[layer_1_size, layer_2_size])
+          vf=[layer_1_size, layer_2_size]),
+        optimizer_kwargs = dict(
+          betas = (betas, betas))
       ))
-    model.learn(25*610*6, log_interval=10)
+    model.learn(200*600*6, log_interval=10)
     print(episode_rewards)
     envs.close()
-    return statistics.median(episode_rewards)
+    return statistics.mean(episode_rewards)
 
+# Test our current parameters (only in first instance of this script though!)
+# study.enqueue_trial(params={
+#   "batch_size": 48,
+#   "layer_1_size": 32,
+#   "layer_2_size": 16,
+#   "learning_rate": 0.0001,
+#   "clip_range": 0.2,
+#   "ent_coef": 0.05,
+#   "gamma": 0.99,
+#   "activation_fn": "Tanh",
+#   "betas": 0.99
+# })
 study.optimize(objective, n_trials=50, gc_after_trial=True)
 print(f"Best value: {study.best_value} (params: {study.best_params})")

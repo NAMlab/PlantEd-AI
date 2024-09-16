@@ -32,9 +32,9 @@ Action = Enum('Action', [
   'BUY_LEAF',
   'BUY_STEM',
   'BUY_ROOT',
-  'BUY_SEED' #,
-#  'ADD_WATER',
-#  'ADD_NITRATE'
+  'BUY_SEED',
+  'ADD_WATER',
+  'ADD_NITRATE'
   ], start=0) # start at 0 because the gym action space starts at 0
 
 # A 20-element list which follows a bell curve centered on the 11th element and SD of 3.5.
@@ -251,16 +251,15 @@ class PlantEdEnv(gym.Env):
           "stomata": self.stomata,
         },
         "shop_actions":{
-          "buy_watering_can": None, #dict(cells=bell_curve) if action == Action.ADD_WATER else None,
-          "buy_nitrate": None, #dict(cells=[list(b) for b in zip(range(0, 20), [0]*20, bell_curve)]) if action == Action.ADD_NITRATE else None,
+          "buy_watering_can": dict(cells=bell_curve) if action == Action.ADD_WATER else None,
+          "buy_nitrate": dict(cells=[list(b) for b in zip(range(0, 20), [0]*20, bell_curve)]) if action == Action.ADD_NITRATE else None,
           "buy_leaf": 1 if action == Action.BUY_LEAF else None,
           "buy_branch": 1 if action == Action.BUY_STEM else None,
-          "buy_root": {'directions': [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]} if action == Action.BUY_ROOT else None,
+          "buy_root": {'directions': self.new_root_direction(self.last_observation)} if action == Action.BUY_ROOT else None,
           "buy_seed": 1 if action == Action.BUY_SEED else None
         }
       }
     }
-
     res, terminated, truncated = asyncio.run(self.execute_step(message))
     if truncated:
       observation = self.last_observation # @TODO This is not optimal because it pretends that what the actor did had no influence at all.
@@ -277,8 +276,18 @@ class PlantEdEnv(gym.Env):
 
     return(observation, reward, terminated, truncated, {})
 
+  def new_root_direction(self, observation):
+    # Grow the first two roots horizontally to allow taking up all starch and water, then randomly down afterwards.
+    if observation["n_organs"][2] == 1:
+      direction = [[-1, 0]]
+    elif observation["n_organs"][2] == 2:
+      direction = [[1, 0]]
+    else:
+      direction = [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]
+    return direction
+
   def calc_reward(self, biomasses, action):
-    current_score = biomasses.leaf + biomasses.stem + biomasses.root + 2*biomasses.seed
+    current_score = biomasses.leaf + biomasses.stem + biomasses.root + 3*biomasses.seed
     reward = 0 if self.last_step_score == -1 else current_score - self.last_step_score
     self.last_step_score = current_score
 
@@ -289,9 +298,10 @@ class PlantEdEnv(gym.Env):
     elif action == Action.CLOSE_STOMATA and not self.last_observation["stomata_state"][0]:
       # Closing stomata that are already closed
       reward = reward - current_score * 0.02
-    # elif action in [Action.ADD_WATER, Action.ADD_NITRATE]:
-    #   # Doing a disabled action
-    #   reward = reward - current_score * 0.005
+    elif action == Action.ADD_NITRATE and self.last_observation["green_thumbs"][0] < NITRATE_COST:
+      reward = reward - current_score * 0.1
+    elif action == Action.ADD_WATER and self.last_observation["green_thumbs"][0] < WATERING_CAN_COST:
+      reward = reward - current_score * 0.1
     elif action == Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < LEAF_COST):
       reward = reward - current_score * 0.1
     elif action == Action.BUY_SEED and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < FLOWER_COST):
