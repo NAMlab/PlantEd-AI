@@ -152,7 +152,7 @@ class PlantEdEnv(gym.Env):
   def get_biomasses(self, res):
     leaf = sum([x[1] for x in res["plant"]["leafs_biomass"]])
     stem = sum([x[1] for x in res["plant"]["stems_biomass"]])
-    root = res["plant"]["roots_biomass"]
+    root = sum([x[1] for x in res["plant"]["roots_biomass"]])
     seed = sum([x[1] for x in res["plant"]["seeds_biomass"]])
     return(Biomass(leaf, stem, root, seed))
 
@@ -160,7 +160,7 @@ class PlantEdEnv(gym.Env):
     return([
      len(res["plant"]["leafs_biomass"]),
      len(res["plant"]["stems_biomass"]),
-     len(res["plant"]["root"]["first_letters"]),
+     len(res["plant"]["roots_biomass"]),
      len(res["plant"]["seeds_biomass"]),
     ])
 
@@ -172,6 +172,7 @@ class PlantEdEnv(gym.Env):
         await websocket.send(json.dumps(message))
         response = await websocket.recv()
         res = json.loads(response)
+        print(res)
         terminated = not res["running"]
       except websockets.exceptions.ConnectionClosedError:
         print("SERVER CRASHED")
@@ -182,20 +183,13 @@ class PlantEdEnv(gym.Env):
 
   @staticmethod
   def build_observation(res, biomasses, n_organs, stomata):
-    root_grid = np.array(res["plant"]["root"]["root_grid"])
-    nitrate_grid = np.array(res["environment"]["nitrate_grid"])
-    water_grid = np.array(res["environment"]["water_grid"])
-
-    res["environment"]["accessible_water"] = (root_grid * water_grid).sum()
-    res["environment"]["accessible_nitrate"] = (root_grid * nitrate_grid).sum()
-
     observation = {
         # Environment
         "temperature": np.array([res["environment"]["temperature"]]).astype(np.float32),
         "sun_intensity": np.array([max(0, res["environment"]["sun_intensity"])]).astype(np.float32), # according to Daniel <0 = 0 for the plant
         "humidity": np.array([res["environment"]["humidity"]]).astype(np.float32),
-        "accessible_water": np.array([res["environment"]["accessible_water"]]).astype(np.float32),
-        "accessible_nitrate": np.array([res["environment"]["accessible_nitrate"]]).astype(np.float32),
+        "accessible_water": np.array([res["water_available"]]).astype(np.float32),
+        "accessible_nitrate": np.array([res["nitrate_available"]]).astype(np.float32),
         "green_thumbs": np.array([res["green_thumbs"]]).astype(np.float32),
 
         # Plant
@@ -322,8 +316,8 @@ class PlantEdEnv(gym.Env):
       res["environment"]["sun_intensity"],
       res["environment"]["humidity"],
       res["environment"]["precipitation"],
-      res["environment"]["accessible_water"],
-      res["environment"]["accessible_nitrate"],
+      res["water_available"],
+      res["nitrate_available"],
 
       biomasses.leaf,
       biomasses.stem,
