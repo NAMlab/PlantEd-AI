@@ -172,7 +172,6 @@ class PlantEdEnv(gym.Env):
         await websocket.send(json.dumps(message))
         response = await websocket.recv()
         res = json.loads(response)
-        print(res)
         terminated = not res["running"]
       except websockets.exceptions.ConnectionClosedError:
         print("SERVER CRASHED")
@@ -272,10 +271,11 @@ class PlantEdEnv(gym.Env):
 
   def new_root_direction(self, observation):
     # Grow the first two roots horizontally to allow taking up all starch and water, then randomly down afterwards.
+    # the vertical direction can't be completely zero so we're setting it to something very small.
     if observation["n_organs"][2] == 1:
-      direction = [[-1, 0]]
+      direction = [[-1, 0.0001]]
     elif observation["n_organs"][2] == 2:
-      direction = [[1, 0]]
+      direction = [[1, 0.0001]]
     else:
       direction = [[random.gauss(0, 0.4), random.gauss(1, 0.3)]]
     return direction
