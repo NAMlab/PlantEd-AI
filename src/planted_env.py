@@ -288,25 +288,22 @@ class PlantEdEnv(gym.Env):
     # Penalties for doing nonsense:
     if action == Action.OPEN_STOMATA and self.last_observation["stomata_state"][0]:
       # Opening stomata that are already open
-      reward = reward - current_score * 0.02
+      reward = -0.05
     elif action == Action.CLOSE_STOMATA and not self.last_observation["stomata_state"][0]:
       # Closing stomata that are already closed
-      reward = reward - current_score * 0.02
+      reward = -0.05
     elif action == Action.ADD_NITRATE and self.last_observation["green_thumbs"][0] < NITRATE_COST:
-      reward = reward - current_score * 0.1
+      reward = -0.1
     elif action == Action.ADD_WATER and self.last_observation["green_thumbs"][0] < WATERING_CAN_COST:
-      reward = reward - current_score * 0.1
+      reward = -0.1
     elif action == Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < LEAF_COST):
-      reward = reward - current_score * 0.1
+      reward = -0.1
     elif action == Action.BUY_SEED and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < FLOWER_COST):
-      # Buying a seed without spots or green thumbs for it
-      reward = reward - current_score * 0.1
+      reward = -0.1
     elif action == Action.BUY_STEM and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < BRANCH_COST):
-      # Buying a stem without spots or green thumbs for it
-      reward = reward - current_score * 0.1
+      reward = -0.1
     elif action == Action.BUY_ROOT and self.last_observation["green_thumbs"][0] < ROOT_COST:
-      # Buying a root without green thumbs for it
-      reward = reward - current_score * 0.1
+      reward = -0.1
     return(reward)
 
   def write_log_row(self, res, game_state, biomasses, n_organs, action, reward):
