@@ -66,18 +66,18 @@ class PlantEdEnv(gym.Env):
     self.action_space = spaces.Discrete(len(Action))
     self.observation_space = spaces.Dict({
       # Environment
-      "temperature": spaces.Box(-200, 200),
+      "temperature": spaces.Box(-10, 40),
       "sun_intensity": spaces.Box(-1, 1),
       "humidity": spaces.Box(0, 100),
       "accessible_water": spaces.Box(0, 6000000),
-      "accessible_nitrate": spaces.Box(0, 1200),
+      "accessible_nitrate": spaces.Box(0, 800), # can be very high in high-nitrate envs
       "green_thumbs": spaces.Box(0, 25),
       # Plant
       "biomasses": spaces.Box(0, 100, shape=(4,)), #leaf, stem, root, seed
-      "n_organs": spaces.Box(0, 25, shape=(4,)), #leaf, stem, root, seed
+      "n_organs": spaces.Box(0, 100, shape=(4,)), #leaf, stem, root, seed
       "open_spots": spaces.Box(0, 100),
-      "starch_pool": spaces.Box(0, 100),
-      "max_starch_pool": spaces.Box(0, 100),
+      "starch_pool": spaces.Box(0, 1000),
+      "max_starch_pool": spaces.Box(0, 1000),
       "stomata_state": spaces.MultiBinary(1)
       })
 
