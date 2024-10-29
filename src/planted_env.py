@@ -21,21 +21,6 @@ from PlantEd.constants import ROOT_COST, BRANCH_COST, LEAF_COST, FLOWER_COST, WA
 
 Biomass = collections.namedtuple("Biomass", "leaf stem root seed")
 
-# Action Space
-Action = Enum('Action', [ 
-  'GROW_LEAVES',
-  'GROW_STEM',
-  'GROW_ROOTS',
-  'PRODUCE_STARCH',
-  'OPEN_STOMATA',
-  'CLOSE_STOMATA',
-  'BUY_LEAF',
-  'BUY_STEM',
-  'BUY_ROOT',
-  'BUY_SEED',
-  'ADD_WATER',
-  'ADD_NITRATE'
-  ], start=0) # start at 0 because the gym action space starts at 0
 
 # A 20-element list which follows a bell curve centered on the 11th element and SD of 3.5.
 # We are using it for adding water or nitrate so that most of the resource is added close to the
@@ -49,10 +34,11 @@ bell_curve = list(bell_curve / bell_curve.sum())
 class PlantEdEnv(gym.Env):
   metadata = {"render_modes": ["ansi"], "render_fps": 30}
 
-  def __init__(self, instance_name="PlantEd_instance", port=8765, level='spring_high_nitrate'):
+  def __init__(self, instance_name="PlantEd_instance", port=8765, level='spring_high_nitrate', water_and_fertilizer_enabled=True):
     self.port = port
     self.instance_name = instance_name
     self.level_name = level
+    self.water_and_fertilizer_enabled = water_and_fertilizer_enabled
     self.csv_file = None
     self.server_process = None
     self.running = False
@@ -62,8 +48,26 @@ class PlantEdEnv(gym.Env):
     #   os.remove(f)
     self.reset_callback = None
 
-    # See Action enum above for action space.
-    self.action_space = spaces.Discrete(len(Action))
+    # Action Space
+    actions = [ 
+      'GROW_LEAVES',
+      'GROW_STEM',
+      'GROW_ROOTS',
+      'PRODUCE_STARCH',
+      'OPEN_STOMATA',
+      'CLOSE_STOMATA',
+      'BUY_LEAF',
+      'BUY_STEM',
+      'BUY_ROOT',
+      'BUY_SEED'
+    ]
+    if water_and_fertilizer_enabled:
+      actions.extend([
+      'ADD_WATER',
+      'ADD_NITRATE'
+      ])
+    self.Action = Enum('Action', actions, start=0) # start at 0 because the gym action space starts at 0
+    self.action_space = spaces.Discrete(len(self.Action))
     self.observation_space = spaces.Dict({
       # Environment
       "temperature": spaces.Box(-10, 40),
@@ -225,31 +229,31 @@ class PlantEdEnv(gym.Env):
     return(observation, reward, terminated, truncated, {})
 
   def step(self, a):
-    action = Action(a)
+    action = self.Action(a)
     print("step. " + action.name)
-    if action == Action.OPEN_STOMATA:
+    if action == self.Action.OPEN_STOMATA:
       self.stomata = True
-    if action == Action.CLOSE_STOMATA:
+    if action == self.Action.CLOSE_STOMATA:
       self.stomata = False
     message = {
       "type": "simulate",
       "message": {
         "delta_t": 6 * 60 * 10,
         "growth_percentages": {
-          "leaf_percent": 100 if action == Action.GROW_LEAVES else 0,
-          "stem_percent": 100 if action == Action.GROW_STEM else 0,
-          "root_percent": 100 if action == Action.GROW_ROOTS else 0,
+          "leaf_percent": 100 if action == self.Action.GROW_LEAVES else 0,
+          "stem_percent": 100 if action == self.Action.GROW_STEM else 0,
+          "root_percent": 100 if action == self.Action.GROW_ROOTS else 0,
           "seed_percent": 0,
-          "starch_percent": 100 if action not in [Action.GROW_LEAVES, Action.GROW_STEM, Action.GROW_ROOTS] else -100, # make starch when manipulating stomata or new roots
+          "starch_percent": 100 if action not in [self.Action.GROW_LEAVES, self.Action.GROW_STEM, self.Action.GROW_ROOTS] else -100, # make starch when manipulating stomata or new roots
           "stomata": self.stomata,
         },
         "shop_actions":{
-          "buy_watering_can": dict(cells=bell_curve) if action == Action.ADD_WATER else None,
-          "buy_nitrate": dict(cells=[list(b) for b in zip(range(0, 20), [0]*20, bell_curve)]) if action == Action.ADD_NITRATE else None,
-          "buy_leaf": 1 if action == Action.BUY_LEAF else None,
-          "buy_branch": 1 if action == Action.BUY_STEM else None,
-          "buy_root": {'directions': self.new_root_direction(self.last_observation)} if action == Action.BUY_ROOT else None,
-          "buy_seed": 1 if action == Action.BUY_SEED else None
+          "buy_watering_can": dict(cells=bell_curve) if self.water_and_fertilizer_enabled and action == self.Action.ADD_WATER else None,
+          "buy_nitrate": dict(cells=[list(b) for b in zip(range(0, 20), [0]*20, bell_curve)]) if self.water_and_fertilizer_enabled and action == self.Action.ADD_NITRATE else None,
+          "buy_leaf": 1 if action == self.Action.BUY_LEAF else None,
+          "buy_branch": 1 if action == self.Action.BUY_STEM else None,
+          "buy_root": {'directions': self.new_root_direction(self.last_observation)} if action == self.Action.BUY_ROOT else None,
+          "buy_seed": 1 if action == self.Action.BUY_SEED else None
         }
       }
     }
@@ -286,23 +290,23 @@ class PlantEdEnv(gym.Env):
     self.last_step_score = current_score
 
     # Penalties for doing nonsense:
-    if action == Action.OPEN_STOMATA and self.last_observation["stomata_state"][0]:
+    if action == self.Action.OPEN_STOMATA and self.last_observation["stomata_state"][0]:
       # Opening stomata that are already open
       reward = -0.05
-    elif action == Action.CLOSE_STOMATA and not self.last_observation["stomata_state"][0]:
+    elif action == self.Action.CLOSE_STOMATA and not self.last_observation["stomata_state"][0]:
       # Closing stomata that are already closed
       reward = -0.05
-    elif action == Action.ADD_NITRATE and self.last_observation["green_thumbs"][0] < NITRATE_COST:
+    elif self.water_and_fertilizer_enabled and action == self.Action.ADD_NITRATE and self.last_observation["green_thumbs"][0] < NITRATE_COST:
       reward = -0.1
-    elif action == Action.ADD_WATER and self.last_observation["green_thumbs"][0] < WATERING_CAN_COST:
+    elif self.water_and_fertilizer_enabled and action == self.Action.ADD_WATER and self.last_observation["green_thumbs"][0] < WATERING_CAN_COST:
       reward = -0.1
-    elif action == Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < LEAF_COST):
+    elif action == self.Action.BUY_LEAF and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < LEAF_COST):
       reward = -0.1
-    elif action == Action.BUY_SEED and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < FLOWER_COST):
+    elif action == self.Action.BUY_SEED and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < FLOWER_COST):
       reward = -0.1
-    elif action == Action.BUY_STEM and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < BRANCH_COST):
+    elif action == self.Action.BUY_STEM and (self.last_observation["open_spots"][0] == 0 or self.last_observation["green_thumbs"][0] < BRANCH_COST):
       reward = -0.1
-    elif action == Action.BUY_ROOT and self.last_observation["green_thumbs"][0] < ROOT_COST:
+    elif action == self.Action.BUY_ROOT and self.last_observation["green_thumbs"][0] < ROOT_COST:
       reward = -0.1
     return(reward)
 
