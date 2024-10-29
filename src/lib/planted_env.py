@@ -1,7 +1,5 @@
 import csv
 import sys
-import os
-import glob
 import asyncio
 import json
 import websockets
@@ -20,7 +18,6 @@ from PlantEd.server import server
 from PlantEd.constants import ROOT_COST, BRANCH_COST, LEAF_COST, FLOWER_COST, WATERING_CAN_COST, NITRATE_COST
 
 Biomass = collections.namedtuple("Biomass", "leaf stem root seed")
-
 
 # A 20-element list which follows a bell curve centered on the 11th element and SD of 3.5.
 # We are using it for adding water or nitrate so that most of the resource is added close to the
@@ -43,9 +40,6 @@ class PlantEdEnv(gym.Env):
     self.server_process = None
     self.running = False
     self.game_counter = 0 # add 1 at each reset --> to save all the logs
-    # Remove previous game logs
-    # for f in glob.glob('game_logs/*.csv'):
-    #   os.remove(f)
     self.reset_callback = None
 
     # Action Space
