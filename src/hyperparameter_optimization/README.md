@@ -1,0 +1,3 @@
+During development, we experimented with automatic hyperparameter optimization using [Optuna](https://optuna.org/).
+In the end it seemed that they did not affect the performance by very much and it was very time-intensive so we decided to stick with reasonable hyperparameters that worked.
+This folder contains the code and results of these experiments just in case they are of interest for anyone in the future.

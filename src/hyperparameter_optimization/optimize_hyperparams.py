@@ -1,15 +1,8 @@
-import os
 import sys
-import math
 import statistics
 
-import gymnasium as gym
-
-from stable_baselines3 import A2C, PPO
-from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-from stable_baselines3.common.env_util import make_vec_env
 import torch as th
 
 from planted_env import PlantEdEnv
@@ -26,7 +19,7 @@ def make_env(level_name, port, episode_name, reset_callback):
     return env
   return _init
 
-study = optuna.create_study(study_name="Paperv1 Study", storage="sqlite:///level-studies.db", load_if_exists=True, direction="maximize")
+study = optuna.create_study(study_name="Paperv1 Study", storage="sqlite:///level-studies.lfs.db", load_if_exists=True, direction="maximize")
 
 def objective(trial):
 
