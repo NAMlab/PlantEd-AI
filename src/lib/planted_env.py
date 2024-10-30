@@ -345,6 +345,17 @@ if __name__ == "__main__":
   from stable_baselines3.common.env_checker import check_env
 
   env = PlantEdEnv("Test-Env")
+  s_size = env.observation_space.shape
+  a_size = env.action_space
+
+  print("_____OBSERVATION SPACE_____ \n")
+  print("The State Space is: ", s_size)
+  print("Sample observation", env.observation_space.sample()) # Get a random observation
+
+  print("\n _____ACTION SPACE_____ \n")
+  print("The Action Space is: ", a_size)
+  print("Action Space Sample", env.action_space.sample()) # Take a random action
+
   # It will check your custom environment and output additional warnings if needed
   check_env(env)
   env.close()
